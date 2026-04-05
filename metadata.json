@@ -1,0 +1,5 @@
+{
+  "name": "Si Abon Megilan",
+  "description": "Attendance System of Puskesmas",
+  "requestFramePermissions": ["camera", "geolocation"]
+}
