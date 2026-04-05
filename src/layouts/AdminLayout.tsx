@@ -8,6 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -154,25 +155,31 @@ export default function AdminLayout() {
                       <LayoutDashboard className="mr-2 h-4 w-4"/> Dashboard
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Absensi</DropdownMenuLabel>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer pl-6" />}>Absen Harian</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer pl-6" />}>Absensi Bulanan</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer pl-6" />}>Analisa Data</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6" />}>Persetujuan Izin</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer pl-6" />}>Hari Libur</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer pl-6" />}>Pengumuman</DropdownMenuItem>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Absensi</DropdownMenuLabel>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer pl-6" />}>Absen Harian</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer pl-6" />}>Absensi Bulanan</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer pl-6" />}>Analisa Data</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6" />}>Persetujuan Izin</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer pl-6" />}>Hari Libur</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer pl-6" />}>Pengumuman</DropdownMenuItem>
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Master Data</DropdownMenuLabel>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer pl-6" />}>Karyawan</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer pl-6" />}>Alamat Kantor</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer pl-6" />}>Shift</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer pl-6" />}>Administrator</DropdownMenuItem>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Master Data</DropdownMenuLabel>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer pl-6" />}>Karyawan</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer pl-6" />}>Alamat Kantor</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer pl-6" />}>Shift</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer pl-6" />}>Administrator</DropdownMenuItem>
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Sistem</DropdownMenuLabel>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>General</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer pl-6" />}>Absensi</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Leave & Time off</DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Data Management</DropdownMenuItem>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Sistem</DropdownMenuLabel>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>General</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer pl-6" />}>Absensi</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Leave & Time off</DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Data Management</DropdownMenuItem>
+                    </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -186,14 +193,16 @@ export default function AdminLayout() {
                   </Avatar>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user.name}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.nip}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user.name}</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.nip}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                  </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />

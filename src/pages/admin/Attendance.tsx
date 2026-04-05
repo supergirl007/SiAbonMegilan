@@ -47,8 +47,36 @@ export default function AdminAttendance() {
 
   const dates = getDatesInRange(startDate, endDate);
 
-  // Mock data for Absensi Harian
-  const mockHarian = [
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const response = await fetch('/api/attendance');
+        if (response.ok) {
+          const data = await response.json();
+          setAttendanceData(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch attendance:', error);
+      }
+    };
+    fetchAttendance();
+  }, []);
+
+  // Process attendance data for Harian
+  const processedHarian = attendanceData.filter(a => a.date === date).map(a => ({
+    nama: a.name,
+    nip: a.nip,
+    kantor: a.location, // In a real app, map coordinates to office name
+    shift: "-", // Determine shift based on time
+    status: a.status,
+    jamMasuk: a.type === 'in' ? a.time : "-",
+    jamKeluar: a.type === 'out' ? a.time : "-"
+  }));
+
+  // Fallback to mock if empty for demonstration
+  const displayHarian = processedHarian.length > 0 ? processedHarian : [
     { nama: "Admin User", nip: "123456", kantor: "Kantor Induk", shift: "Pagi", status: "Hadir", jamMasuk: "07:45", jamKeluar: "-" }
   ];
 
@@ -160,7 +188,7 @@ export default function AdminAttendance() {
     worksheet.getRow(3).font = { bold: true };
 
     // Add Data
-    mockHarian.forEach((row, index) => {
+    displayHarian.forEach((row, index) => {
       worksheet.addRow([row.nama, row.nip, row.kantor, row.shift, row.status, row.jamMasuk, row.jamKeluar]);
     });
 
@@ -286,7 +314,7 @@ export default function AdminAttendance() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockHarian.map((row, idx) => (
+                    {displayHarian.map((row, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{row.nama}</TableCell>
                         <TableCell>{row.nip}</TableCell>

@@ -57,16 +57,58 @@ export default function AdminEmployees() {
   const [newAdminAccess, setNewAdminAccess] = useState<string[]>([]);
 
   useEffect(() => {
-    const savedEmployees = localStorage.getItem('employeesData');
-    if (savedEmployees) {
-      setEmployees(JSON.parse(savedEmployees));
-    } else {
-      // Default mock data
-      setEmployees([
-        { id: "1", name: "Admin User", nip: "123456", office: "Kantor Induk", email: "admin@puskesmas.com" },
-        { id: "2", name: "Regular User", nip: "654321", office: "Pustu A", email: "user@puskesmas.com" }
-      ]);
-    }
+    // Fetch employees from API
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+        // Fallback to local storage if API fails
+        const savedEmployees = localStorage.getItem('employeesData');
+        if (savedEmployees) {
+          setEmployees(JSON.parse(savedEmployees));
+        }
+      }
+    };
+    fetchEmployees();
+
+    // Fetch admins from API
+    const fetchAdmins = async () => {
+      try {
+        const response = await fetch('/api/admins');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.length > 0) {
+            setAdmins(data);
+          } else {
+            // Fallback to local storage or mock
+            const savedAdmins = localStorage.getItem('adminsData');
+            if (savedAdmins) {
+              setAdmins(JSON.parse(savedAdmins));
+            } else {
+              setAdmins([
+                { id: "1", name: "Super Admin", nip: "000000", email: "super@admin.com", phone: "081234567890", group: "Superadmin", isActive: true, access: ["Absensi", "Master Data", "Sistem"] }
+              ]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch admins:', error);
+        const savedAdmins = localStorage.getItem('adminsData');
+        if (savedAdmins) {
+          setAdmins(JSON.parse(savedAdmins));
+        } else {
+          setAdmins([
+            { id: "1", name: "Super Admin", nip: "000000", email: "super@admin.com", phone: "081234567890", group: "Superadmin", isActive: true, access: ["Absensi", "Master Data", "Sistem"] }
+          ]);
+        }
+      }
+    };
+    fetchAdmins();
 
     const savedLocations = localStorage.getItem('locationsData');
     if (savedLocations) {
@@ -87,18 +129,9 @@ export default function AdminEmployees() {
         { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", crossesMidnight: true, isActive: true }
       ]);
     }
-
-    const savedAdmins = localStorage.getItem('adminsData');
-    if (savedAdmins) {
-      setAdmins(JSON.parse(savedAdmins));
-    } else {
-      setAdmins([
-        { id: "1", name: "Super Admin", nip: "000000", email: "super@admin.com", phone: "081234567890", group: "Superadmin", isActive: true, access: ["Absensi", "Master Data", "Sistem"] }
-      ]);
-    }
   }, []);
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     if (newEmpName && newEmpNip && newEmpOffice && newEmpEmail && newEmpGender && newEmpCluster && newEmpUnit) {
       const newEmployee = {
         id: Date.now().toString(),
@@ -112,30 +145,60 @@ export default function AdminEmployees() {
         password: "123456" // Default password
       };
       
-      const updatedEmployees = [...employees, newEmployee];
-      setEmployees(updatedEmployees);
-      localStorage.setItem('employeesData', JSON.stringify(updatedEmployees));
-      
-      toast.success("Karyawan berhasil ditambahkan dengan password default: 123456");
-      
-      setNewEmpName("");
-      setNewEmpNip("");
-      setNewEmpOffice("");
-      setNewEmpEmail("");
-      setNewEmpGender("");
-      setNewEmpCluster("");
-      setNewEmpUnit("");
-      setIsAddEmployeeOpen(false);
+      try {
+        const response = await fetch('/api/employees', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newEmployee),
+        });
+
+        if (response.ok) {
+          const updatedEmployees = [...employees, newEmployee];
+          setEmployees(updatedEmployees);
+          localStorage.setItem('employeesData', JSON.stringify(updatedEmployees));
+          
+          toast.success("Karyawan berhasil ditambahkan dengan password default: 123456");
+          
+          setNewEmpName("");
+          setNewEmpNip("");
+          setNewEmpOffice("");
+          setNewEmpEmail("");
+          setNewEmpGender("");
+          setNewEmpCluster("");
+          setNewEmpUnit("");
+          setIsAddEmployeeOpen(false);
+        } else {
+          toast.error("Gagal menambahkan karyawan ke server");
+        }
+      } catch (error) {
+        console.error("Error adding employee:", error);
+        toast.error("Terjadi kesalahan jaringan");
+      }
     } else {
       toast.error("Mohon lengkapi semua data");
     }
   };
 
-  const handleDeleteEmployee = (id: string) => {
-    const updatedEmployees = employees.filter(emp => emp.id !== id);
-    setEmployees(updatedEmployees);
-    localStorage.setItem('employeesData', JSON.stringify(updatedEmployees));
-    toast.success("Karyawan berhasil dihapus");
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      const response = await fetch(`/api/employees/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const updatedEmployees = employees.filter(emp => emp.id !== id);
+        setEmployees(updatedEmployees);
+        localStorage.setItem('employeesData', JSON.stringify(updatedEmployees));
+        toast.success("Karyawan berhasil dihapus");
+      } else {
+        toast.error("Gagal menghapus karyawan dari server");
+      }
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
   const handleAddLocation = () => {
@@ -202,7 +265,7 @@ export default function AdminEmployees() {
     toast.success("Status shift berhasil diubah");
   };
 
-  const handleAddAdmin = () => {
+  const handleAddAdmin = async () => {
     if (newAdminName && newAdminNip && newAdminEmail && newAdminPassword && newAdminGroup && newAdminPhone) {
       const newAdmin = {
         id: Date.now().toString(),
@@ -215,28 +278,59 @@ export default function AdminEmployees() {
         isActive: true,
         access: newAdminAccess
       };
-      const updatedAdmins = [...admins, newAdmin];
-      setAdmins(updatedAdmins);
-      localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
-      toast.success("Admin berhasil ditambahkan");
-      setNewAdminName("");
-      setNewAdminNip("");
-      setNewAdminEmail("");
-      setNewAdminPassword("");
-      setNewAdminGroup("");
-      setNewAdminPhone("");
-      setNewAdminAccess([]);
-      setIsAddAdminOpen(false);
+      
+      try {
+        const response = await fetch('/api/admins', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newAdmin),
+        });
+
+        if (response.ok) {
+          const updatedAdmins = [...admins, newAdmin];
+          setAdmins(updatedAdmins);
+          localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
+          toast.success("Admin berhasil ditambahkan");
+          setNewAdminName("");
+          setNewAdminNip("");
+          setNewAdminEmail("");
+          setNewAdminPassword("");
+          setNewAdminGroup("");
+          setNewAdminPhone("");
+          setNewAdminAccess([]);
+          setIsAddAdminOpen(false);
+        } else {
+          toast.error("Gagal menambahkan admin ke server");
+        }
+      } catch (error) {
+        console.error("Error adding admin:", error);
+        toast.error("Terjadi kesalahan jaringan");
+      }
     } else {
       toast.error("Mohon lengkapi semua data admin");
     }
   };
 
-  const handleDeleteAdmin = (id: string) => {
-    const updatedAdmins = admins.filter(admin => admin.id !== id);
-    setAdmins(updatedAdmins);
-    localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
-    toast.success("Admin berhasil dihapus");
+  const handleDeleteAdmin = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admins/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const updatedAdmins = admins.filter(admin => admin.id !== id);
+        setAdmins(updatedAdmins);
+        localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
+        toast.success("Admin berhasil dihapus");
+      } else {
+        toast.error("Gagal menghapus admin dari server");
+      }
+    } catch (error) {
+      console.error("Error deleting admin:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
   const handleToggleAdminStatus = (id: string) => {

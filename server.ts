@@ -3,7 +3,6 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import multer from 'multer';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import { Resend } from 'resend';
@@ -26,6 +25,10 @@ async function startServer() {
     users: [
       { id: 1, nip: '123456', name: 'Admin User', email: 'admin@puskesmas.com', role: 'admin', password: 'password' },
       { id: 2, nip: '654321', name: 'Regular User', email: 'user@puskesmas.com', role: 'user', password: 'password' },
+    ],
+    employees: [
+      { id: '1', name: 'Admin User', nip: '123456', office: 'Kantor Induk', email: 'admin@puskesmas.com', gender: 'Laki-laki', cluster: 'Klaster 1', unit: 'Manajemen' },
+      { id: '2', name: 'Regular User', nip: '654321', office: 'Pustu A', email: 'user@puskesmas.com', gender: 'Perempuan', cluster: 'Klaster 2', unit: 'Pustu' }
     ],
     attendance: [],
     locations: [
@@ -55,50 +58,316 @@ async function startServer() {
     }
   }
 
+  // Helper to get or create sheet
+  async function getOrCreateSheet(title: string, headerValues: string[]) {
+    if (!doc) return null;
+    let sheet = doc.sheetsByTitle[title];
+    if (!sheet) {
+      sheet = await doc.addSheet({ title, headerValues });
+    }
+    return sheet;
+  }
+
   // API Routes
-  app.post('/api/login', (req, res) => {
+
+  // --- Employees API ---
+  app.get('/api/employees', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'email', 'gender', 'cluster', 'unit', 'password']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const employees = rows.map(row => ({
+            id: row.get('id'),
+            name: row.get('name'),
+            nip: row.get('nip'),
+            office: row.get('office'),
+            email: row.get('email'),
+            gender: row.get('gender'),
+            cluster: row.get('cluster'),
+            unit: row.get('unit'),
+            password: row.get('password')
+          }));
+          return res.json(employees);
+        }
+      } catch (error) {
+        console.error('Error fetching employees from spreadsheet:', error);
+      }
+    }
+    res.json(db.employees);
+  });
+
+  app.post('/api/employees', async (req, res) => {
+    const employee = req.body;
+    
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'email', 'gender', 'cluster', 'unit', 'password']);
+        if (sheet) {
+          await sheet.addRow(employee);
+        }
+      } catch (error) {
+        console.error('Error saving employee to spreadsheet:', error);
+      }
+    } else {
+      db.employees.push(employee);
+    }
+    res.json({ success: true, message: 'Karyawan berhasil ditambahkan' });
+  });
+
+  app.delete('/api/employees/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = doc.sheetsByTitle['Employees'];
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting employee from spreadsheet:', error);
+      }
+    } else {
+      db.employees = db.employees.filter(e => e.id !== id);
+    }
+    res.json({ success: true, message: 'Karyawan berhasil dihapus' });
+  });
+
+  // --- Admins API ---
+  app.get('/api/admins', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Admins', ['id', 'name', 'nip', 'email', 'phone', 'group', 'isActive', 'access', 'password']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const admins = rows.map(row => ({
+            id: row.get('id'),
+            name: row.get('name'),
+            nip: row.get('nip'),
+            email: row.get('email'),
+            phone: row.get('phone'),
+            group: row.get('group'),
+            isActive: row.get('isActive') === 'true',
+            access: row.get('access') ? JSON.parse(row.get('access')) : [],
+            password: row.get('password')
+          }));
+          return res.json(admins);
+        }
+      } catch (error) {
+        console.error('Error fetching admins from spreadsheet:', error);
+      }
+    }
+    res.json([]);
+  });
+
+  app.post('/api/admins', async (req, res) => {
+    const admin = req.body;
+    
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Admins', ['id', 'name', 'nip', 'email', 'phone', 'group', 'isActive', 'access', 'password']);
+        if (sheet) {
+          await sheet.addRow({
+            ...admin,
+            isActive: admin.isActive.toString(),
+            access: JSON.stringify(admin.access)
+          });
+        }
+      } catch (error) {
+        console.error('Error saving admin to spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Admin berhasil ditambahkan' });
+  });
+
+  app.delete('/api/admins/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = doc.sheetsByTitle['Admins'];
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting admin from spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Admin berhasil dihapus' });
+  });
+
+  // --- Auth API ---
+  app.post('/api/login', async (req, res) => {
     const { nip, password } = req.body;
-    const user = db.users.find(u => u.nip === nip && u.password === password);
+    
+    let user = null;
+    if (doc) {
+      try {
+        // Check Admins first
+        const adminSheet = doc.sheetsByTitle['Admins'];
+        if (adminSheet) {
+          const rows = await adminSheet.getRows();
+          const row = rows.find(r => r.get('nip') === nip && r.get('password') === password && r.get('isActive') === 'true');
+          if (row) {
+            user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: 'admin' };
+          }
+        }
+
+        // If not admin, check Users
+        if (!user) {
+          const userSheet = doc.sheetsByTitle['Users'];
+          if (userSheet) {
+            const rows = await userSheet.getRows();
+            const row = rows.find(r => r.get('nip') === nip && r.get('password') === password);
+            if (row) {
+              user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: row.get('role') };
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error logging in from spreadsheet:', error);
+      }
+    }
+    
+    if (!user) {
+      user = db.users.find(u => u.nip === nip && u.password === password);
+    }
+
     if (user) {
-      res.json({ success: true, user: { id: user.id, nip: user.nip, name: user.name, role: user.role } });
+      res.json({ success: true, user });
     } else {
       res.status(401).json({ success: false, message: 'NIP atau Password salah' });
     }
   });
 
   app.post('/api/register', async (req, res) => {
-    const { nip, name, email, password } = req.body;
+    const { nip, name, email, password, gender, cluster, unit } = req.body;
     
-    // Check if user already exists
-    if (db.users.find(u => u.nip === nip)) {
-      return res.status(400).json({ success: false, message: 'NIP sudah terdaftar' });
+    // 1. Validate NIP against Employees data
+    let isValidEmployee = false;
+    if (doc) {
+      try {
+        const empSheet = doc.sheetsByTitle['Employees'];
+        if (empSheet) {
+          const rows = await empSheet.getRows();
+          isValidEmployee = rows.some(r => r.get('nip') === nip);
+        }
+      } catch (error) {
+        console.error('Error validating employee NIP:', error);
+      }
+    }
+    
+    if (!isValidEmployee) {
+      isValidEmployee = db.employees.some(e => e.nip === nip);
+    }
+
+    if (!isValidEmployee) {
+      return res.status(400).json({ success: false, message: 'NIP tidak terdaftar sebagai karyawan. Hubungi Admin.' });
+    }
+
+    // 2. Check if user already exists
+    let userExists = false;
+    if (doc) {
+      try {
+        const userSheet = await getOrCreateSheet('Users', ['id', 'nip', 'name', 'email', 'role', 'password', 'gender', 'cluster', 'unit']);
+        if (userSheet) {
+          const rows = await userSheet.getRows();
+          userExists = rows.some(r => r.get('nip') === nip);
+        }
+      } catch (error) {
+        console.error('Error checking existing user:', error);
+      }
+    } else {
+      userExists = db.users.some(u => u.nip === nip);
+    }
+
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'NIP sudah terdaftar sebagai user' });
     }
 
     const newUser = {
-      id: db.users.length + 1,
+      id: Date.now().toString(),
       nip,
       name,
       email,
       role: 'user',
-      password
+      password,
+      gender,
+      cluster,
+      unit
     };
-
-    db.users.push(newUser);
 
     // Save to Google Spreadsheet if configured
     if (doc) {
       try {
-        let sheet = doc.sheetsByTitle['Users'];
-        if (!sheet) {
-          sheet = await doc.addSheet({ title: 'Users', headerValues: ['id', 'nip', 'name', 'email', 'role', 'password'] });
+        const sheet = await getOrCreateSheet('Users', ['id', 'nip', 'name', 'email', 'role', 'password', 'gender', 'cluster', 'unit']);
+        if (sheet) {
+          await sheet.addRow(newUser);
         }
-        await sheet.addRow(newUser);
       } catch (error) {
-        console.error('Error saving to spreadsheet:', error);
+        console.error('Error saving user to spreadsheet:', error);
       }
+    } else {
+      db.users.push(newUser as any);
     }
 
     res.json({ success: true, message: 'Pendaftaran berhasil' });
+  });
+
+  // --- Attendance API ---
+  app.get('/api/attendance', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const attendance = rows.map(row => ({
+            id: row.get('id'),
+            nip: row.get('nip'),
+            name: row.get('name'),
+            date: row.get('date'),
+            time: row.get('time'),
+            type: row.get('type'),
+            location: row.get('location'),
+            status: row.get('status'),
+            photoUrl: row.get('photoUrl')
+          }));
+          return res.json(attendance);
+        }
+      } catch (error) {
+        console.error('Error fetching attendance from spreadsheet:', error);
+      }
+    }
+    res.json(db.attendance);
+  });
+
+  app.post('/api/attendance', async (req, res) => {
+    const attendanceData = req.body;
+    // attendanceData: { nip, name, date, time, type, location, status, photoUrl }
+    
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
+        if (sheet) {
+          await sheet.addRow({
+            id: Date.now().toString(),
+            ...attendanceData
+          });
+        }
+      } catch (error) {
+        console.error('Error saving attendance to spreadsheet:', error);
+      }
+    } else {
+      db.attendance.push({ id: Date.now().toString(), ...attendanceData } as any);
+    }
+
+    res.json({ success: true, message: 'Absensi berhasil dicatat' });
   });
 
   app.post('/api/forgot-password', async (req, res) => {

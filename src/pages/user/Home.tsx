@@ -52,16 +52,45 @@ export default function UserHome() {
     handleLocation();
   };
 
-  const captureAndSubmit = () => {
+  const captureAndSubmit = async () => {
     const imageSrc = webcamRef.current?.getScreenshot();
     if (imageSrc && location) {
-      // Here you would normally send the data to the backend
-      // For prototype, we just update local state
-      const timeString = format(new Date(), 'HH:mm');
-      setAttendance(prev => ({ ...prev, [actionType!]: timeString }));
-      toast.success(`Absen ${actionType === 'in' ? 'Masuk' : 'Keluar'} berhasil!`);
-      setShowCamera(false);
-      setActionType(null);
+      try {
+        const timeString = format(new Date(), 'HH:mm');
+        const dateString = format(new Date(), 'yyyy-MM-dd');
+        
+        const attendanceData = {
+          nip: user?.nip,
+          name: user?.name,
+          date: dateString,
+          time: timeString,
+          type: actionType,
+          location: `${location.latitude}, ${location.longitude}`,
+          status: 'Hadir', // Simplified for prototype
+          photoUrl: imageSrc // In a real app, upload this to storage and save URL
+        };
+
+        const response = await fetch('/api/attendance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(attendanceData),
+        });
+
+        if (response.ok) {
+          setAttendance(prev => ({ ...prev, [actionType!]: timeString }));
+          toast.success(`Absen ${actionType === 'in' ? 'Masuk' : 'Keluar'} berhasil!`);
+        } else {
+          toast.error('Gagal menyimpan absensi ke server');
+        }
+      } catch (error) {
+        console.error('Error saving attendance:', error);
+        toast.error('Terjadi kesalahan jaringan');
+      } finally {
+        setShowCamera(false);
+        setActionType(null);
+      }
     }
   };
 
