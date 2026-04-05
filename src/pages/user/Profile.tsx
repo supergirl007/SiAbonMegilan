@@ -1,9 +1,32 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
 export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [employeeData, setEmployeeData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchEmployeeData = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const employees = await response.json();
+          const currentEmployee = employees.find((emp: any) => emp.nip === user.nip);
+          if (currentEmployee) {
+            setEmployeeData(currentEmployee);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch employee data:', error);
+      }
+    };
+
+    if (user.nip) {
+      fetchEmployeeData();
+    }
+  }, [user.nip]);
 
   return (
     <div className="p-4 space-y-6">
@@ -31,15 +54,15 @@ export default function UserProfile() {
         <CardContent className="space-y-4">
           <div>
             <p className="text-sm text-slate-400 mb-1">Kantor / Penempatan</p>
-            <p className="font-medium">Puskesmas Induk</p>
+            <p className="font-medium">{employeeData?.office || 'Puskesmas Induk'}</p>
           </div>
           <div>
-            <p className="text-sm text-slate-400 mb-1">Shift Default</p>
-            <p className="font-medium">Pagi (08:00 - 16:00)</p>
+            <p className="text-sm text-slate-400 mb-1">Unit</p>
+            <p className="font-medium">{employeeData?.unit || '-'}</p>
           </div>
           <div>
             <p className="text-sm text-slate-400 mb-1">Email</p>
-            <p className="font-medium">pegawai@puskesmas.com</p>
+            <p className="font-medium">{employeeData?.email || user.email || 'pegawai@puskesmas.com'}</p>
           </div>
         </CardContent>
       </Card>

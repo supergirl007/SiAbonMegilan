@@ -1,9 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { format } from 'date-fns';
 
 export default function UserHistory() {
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const response = await fetch('/api/attendance');
+        if (response.ok) {
+          const data = await response.json();
+          // Filter for current user
+          const userAttendance = data.filter((a: any) => a.nip === user.nip);
+          setAttendanceData(userAttendance);
+        }
+      } catch (error) {
+        console.error('Failed to fetch attendance:', error);
+      }
+    };
+    if (user.nip) {
+      fetchAttendance();
+    }
+  }, [user.nip]);
+
+  const selectedDateString = date ? format(date, 'yyyy-MM-dd') : '';
+  const dayAttendance = attendanceData.filter(a => a.date === selectedDateString);
+  
+  const jamMasuk = dayAttendance.find(a => a.type === 'in')?.time || '-';
+  const jamKeluar = dayAttendance.find(a => a.type === 'out')?.time || '-';
+  const status = dayAttendance.length > 0 ? dayAttendance[0].status : 'Belum Absen';
 
   return (
     <div className="p-4 space-y-6">
@@ -34,15 +63,17 @@ export default function UserHistory() {
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-slate-400">Jam Masuk</span>
-            <span className="font-medium text-emerald-400">07:45</span>
+            <span className="font-medium text-emerald-400">{jamMasuk}</span>
           </div>
           <div className="flex justify-between items-center border-b border-slate-800 pb-2">
             <span className="text-slate-400">Jam Keluar</span>
-            <span className="font-medium text-blue-400">16:05</span>
+            <span className="font-medium text-blue-400">{jamKeluar}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-400">Status</span>
-            <span className="font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">Hadir Tepat Waktu</span>
+            <span className={`font-medium px-2 py-1 rounded ${status === 'Belum Absen' ? 'text-slate-400 bg-slate-800' : 'text-emerald-500 bg-emerald-500/10'}`}>
+              {status}
+            </span>
           </div>
         </CardContent>
       </Card>

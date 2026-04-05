@@ -20,10 +20,30 @@ export default function AdminAttendance() {
     setSearchParams({ tab: value });
   };
 
-  // Mock Settings Data
-  const savedGeneral = JSON.parse(localStorage.getItem('generalSettings') || '{}');
-  const puskesmasName = savedGeneral.companyName || "Puskesmas Sehat";
-  const pimpinanName = savedGeneral.pimpinanName || "Dr. Budi Santoso";
+  const [generalSettings, setGeneralSettings] = useState<any>({});
+  const puskesmasName = generalSettings.companyName || "Puskesmas Sehat";
+  const pimpinanName = generalSettings.pimpinanName || "Dr. Budi Santoso";
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.generalSettings) {
+            setGeneralSettings(data.generalSettings);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+        const savedGeneral = localStorage.getItem('generalSettings');
+        if (savedGeneral) {
+          setGeneralSettings(JSON.parse(savedGeneral));
+        }
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // State for Absensi Bulanan
   const today = new Date();

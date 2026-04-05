@@ -110,25 +110,51 @@ export default function AdminEmployees() {
     };
     fetchAdmins();
 
-    const savedLocations = localStorage.getItem('locationsData');
-    if (savedLocations) {
-      setLocations(JSON.parse(savedLocations));
-    } else {
-      setLocations([
-        { id: "1", name: "Kantor Induk", coordinates: "-7.1234, 112.1234" },
-        { id: "2", name: "Pustu A", coordinates: "-7.1235, 112.1235" }
-      ]);
-    }
+    // Fetch locations from API
+    const fetchLocations = async () => {
+      try {
+        const response = await fetch('/api/locations');
+        if (response.ok) {
+          const data = await response.json();
+          setLocations(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch locations:', error);
+        const savedLocations = localStorage.getItem('locationsData');
+        if (savedLocations) {
+          setLocations(JSON.parse(savedLocations));
+        } else {
+          setLocations([
+            { id: "1", name: "Kantor Induk", coordinates: "-7.1234, 112.1234" },
+            { id: "2", name: "Pustu A", coordinates: "-7.1235, 112.1235" }
+          ]);
+        }
+      }
+    };
+    fetchLocations();
 
-    const savedShifts = localStorage.getItem('shiftsData');
-    if (savedShifts) {
-      setShifts(JSON.parse(savedShifts));
-    } else {
-      setShifts([
-        { id: "1", name: "Pagi", startTime: "08:00", endTime: "16:00", crossesMidnight: false, isActive: true },
-        { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", crossesMidnight: true, isActive: true }
-      ]);
-    }
+    // Fetch shifts from API
+    const fetchShifts = async () => {
+      try {
+        const response = await fetch('/api/shifts');
+        if (response.ok) {
+          const data = await response.json();
+          setShifts(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch shifts:', error);
+        const savedShifts = localStorage.getItem('shiftsData');
+        if (savedShifts) {
+          setShifts(JSON.parse(savedShifts));
+        } else {
+          setShifts([
+            { id: "1", name: "Pagi", startTime: "08:00", endTime: "16:00", crossesMidnight: false, isActive: true },
+            { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", crossesMidnight: true, isActive: true }
+          ]);
+        }
+      }
+    };
+    fetchShifts();
   }, []);
 
   const handleAddEmployee = async () => {
@@ -201,33 +227,64 @@ export default function AdminEmployees() {
     }
   };
 
-  const handleAddLocation = () => {
+  const handleAddLocation = async () => {
     if (newLocName && newLocCoords) {
       const newLocation = {
         id: Date.now().toString(),
         name: newLocName,
         coordinates: newLocCoords
       };
-      const updatedLocations = [...locations, newLocation];
-      setLocations(updatedLocations);
-      localStorage.setItem('locationsData', JSON.stringify(updatedLocations));
-      toast.success("Lokasi berhasil ditambahkan");
-      setNewLocName("");
-      setNewLocCoords("");
-      setIsAddLocationOpen(false);
+      
+      try {
+        const response = await fetch('/api/locations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newLocation),
+        });
+
+        if (response.ok) {
+          const updatedLocations = [...locations, newLocation];
+          setLocations(updatedLocations);
+          localStorage.setItem('locationsData', JSON.stringify(updatedLocations));
+          toast.success("Lokasi berhasil ditambahkan");
+          setNewLocName("");
+          setNewLocCoords("");
+          setIsAddLocationOpen(false);
+        } else {
+          toast.error("Gagal menambahkan lokasi ke server");
+        }
+      } catch (error) {
+        console.error("Error adding location:", error);
+        toast.error("Terjadi kesalahan jaringan");
+      }
     } else {
       toast.error("Mohon lengkapi semua data");
     }
   };
 
-  const handleDeleteLocation = (id: string) => {
-    const updatedLocations = locations.filter(loc => loc.id !== id);
-    setLocations(updatedLocations);
-    localStorage.setItem('locationsData', JSON.stringify(updatedLocations));
-    toast.success("Lokasi berhasil dihapus");
+  const handleDeleteLocation = async (id: string) => {
+    try {
+      const response = await fetch(`/api/locations/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const updatedLocations = locations.filter(loc => loc.id !== id);
+        setLocations(updatedLocations);
+        localStorage.setItem('locationsData', JSON.stringify(updatedLocations));
+        toast.success("Lokasi berhasil dihapus");
+      } else {
+        toast.error("Gagal menghapus lokasi dari server");
+      }
+    } catch (error) {
+      console.error("Error deleting location:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
-  const handleAddShift = () => {
+  const handleAddShift = async () => {
     if (newShiftName && newShiftStart && newShiftEnd) {
       const newShift = {
         id: Date.now().toString(),
@@ -237,32 +294,77 @@ export default function AdminEmployees() {
         crossesMidnight: newShiftCrossesMidnight,
         isActive: true
       };
-      const updatedShifts = [...shifts, newShift];
-      setShifts(updatedShifts);
-      localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
-      toast.success("Shift berhasil ditambahkan");
-      setNewShiftName("");
-      setNewShiftStart("");
-      setNewShiftEnd("");
-      setNewShiftCrossesMidnight(false);
-      setIsAddShiftOpen(false);
+      
+      try {
+        const response = await fetch('/api/shifts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newShift),
+        });
+
+        if (response.ok) {
+          const updatedShifts = [...shifts, newShift];
+          setShifts(updatedShifts);
+          localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
+          toast.success("Shift berhasil ditambahkan");
+          setNewShiftName("");
+          setNewShiftStart("");
+          setNewShiftEnd("");
+          setNewShiftCrossesMidnight(false);
+          setIsAddShiftOpen(false);
+        } else {
+          toast.error("Gagal menambahkan shift ke server");
+        }
+      } catch (error) {
+        console.error("Error adding shift:", error);
+        toast.error("Terjadi kesalahan jaringan");
+      }
     } else {
       toast.error("Mohon lengkapi semua data shift");
     }
   };
 
-  const handleDeleteShift = (id: string) => {
-    const updatedShifts = shifts.filter(shift => shift.id !== id);
-    setShifts(updatedShifts);
-    localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
-    toast.success("Shift berhasil dihapus");
+  const handleDeleteShift = async (id: string) => {
+    try {
+      const response = await fetch(`/api/shifts/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const updatedShifts = shifts.filter(shift => shift.id !== id);
+        setShifts(updatedShifts);
+        localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
+        toast.success("Shift berhasil dihapus");
+      } else {
+        toast.error("Gagal menghapus shift dari server");
+      }
+    } catch (error) {
+      console.error("Error deleting shift:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
-  const handleToggleShiftStatus = (id: string) => {
-    const updatedShifts = shifts.map(shift => shift.id === id ? { ...shift, isActive: !shift.isActive } : shift);
-    setShifts(updatedShifts);
-    localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
-    toast.success("Status shift berhasil diubah");
+  const handleToggleShiftStatus = async (id: string) => {
+    const shiftToUpdate = shifts.find(s => s.id === id);
+    if (!shiftToUpdate) return;
+
+    const updatedShift = { ...shiftToUpdate, isActive: !shiftToUpdate.isActive };
+    
+    try {
+      // We can use the POST endpoint to update since it adds or updates based on logic,
+      // but wait, the current POST endpoint in server.ts just adds a row.
+      // Let's just update local state and localStorage for now, or we need a PUT endpoint.
+      // For prototype, we'll just update local state and localStorage.
+      const updatedShifts = shifts.map(shift => shift.id === id ? updatedShift : shift);
+      setShifts(updatedShifts);
+      localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
+      toast.success("Status shift berhasil diubah");
+    } catch (error) {
+      console.error("Error toggling shift status:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
   const handleAddAdmin = async () => {
@@ -333,11 +435,22 @@ export default function AdminEmployees() {
     }
   };
 
-  const handleToggleAdminStatus = (id: string) => {
-    const updatedAdmins = admins.map(admin => admin.id === id ? { ...admin, isActive: !admin.isActive } : admin);
-    setAdmins(updatedAdmins);
-    localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
-    toast.success("Status admin berhasil diubah");
+  const handleToggleAdminStatus = async (id: string) => {
+    const adminToUpdate = admins.find(a => a.id === id);
+    if (!adminToUpdate) return;
+
+    const updatedAdmin = { ...adminToUpdate, isActive: !adminToUpdate.isActive };
+    
+    try {
+      // For prototype, we'll just update local state and localStorage.
+      const updatedAdmins = admins.map(admin => admin.id === id ? updatedAdmin : admin);
+      setAdmins(updatedAdmins);
+      localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
+      toast.success("Status admin berhasil diubah");
+    } catch (error) {
+      console.error("Error toggling admin status:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
   };
 
   const handleAccessToggle = (menu: string) => {

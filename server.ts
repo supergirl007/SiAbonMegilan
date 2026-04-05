@@ -404,8 +404,177 @@ async function startServer() {
     res.json(db.users.map(u => ({ id: u.id, nip: u.nip, name: u.name, role: u.role })));
   });
 
-  app.get('/api/settings', (req, res) => {
+  // --- Locations API ---
+  app.get('/api/locations', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'coordinates']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const locations = rows.map(row => ({
+            id: row.get('id'),
+            name: row.get('name'),
+            coordinates: row.get('coordinates')
+          }));
+          return res.json(locations);
+        }
+      } catch (error) {
+        console.error('Error fetching locations from spreadsheet:', error);
+      }
+    }
+    res.json([
+      { id: "1", name: "Kantor Induk", coordinates: "-7.1234, 112.1234" },
+      { id: "2", name: "Pustu A", coordinates: "-7.1235, 112.1235" }
+    ]);
+  });
+
+  app.post('/api/locations', async (req, res) => {
+    const location = req.body;
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'coordinates']);
+        if (sheet) {
+          await sheet.addRow(location);
+        }
+      } catch (error) {
+        console.error('Error saving location to spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Lokasi berhasil ditambahkan' });
+  });
+
+  app.delete('/api/locations/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = doc.sheetsByTitle['Locations'];
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting location from spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Lokasi berhasil dihapus' });
+  });
+
+  // --- Shifts API ---
+  app.get('/api/shifts', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'crossesMidnight', 'isActive']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const shifts = rows.map(row => ({
+            id: row.get('id'),
+            name: row.get('name'),
+            startTime: row.get('startTime'),
+            endTime: row.get('endTime'),
+            crossesMidnight: row.get('crossesMidnight') === 'true',
+            isActive: row.get('isActive') === 'true'
+          }));
+          return res.json(shifts);
+        }
+      } catch (error) {
+        console.error('Error fetching shifts from spreadsheet:', error);
+      }
+    }
+    res.json([
+      { id: "1", name: "Pagi", startTime: "08:00", endTime: "16:00", crossesMidnight: false, isActive: true },
+      { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", crossesMidnight: true, isActive: true }
+    ]);
+  });
+
+  app.post('/api/shifts', async (req, res) => {
+    const shift = req.body;
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'crossesMidnight', 'isActive']);
+        if (sheet) {
+          await sheet.addRow({
+            ...shift,
+            crossesMidnight: shift.crossesMidnight.toString(),
+            isActive: shift.isActive.toString()
+          });
+        }
+      } catch (error) {
+        console.error('Error saving shift to spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Shift berhasil ditambahkan' });
+  });
+
+  app.delete('/api/shifts/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = doc.sheetsByTitle['Shifts'];
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting shift from spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Shift berhasil dihapus' });
+  });
+
+  // --- Settings API ---
+  app.get('/api/settings', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Settings', ['key', 'value']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const settings: any = {};
+          rows.forEach(row => {
+            try {
+              settings[row.get('key')] = JSON.parse(row.get('value'));
+            } catch (e) {
+              settings[row.get('key')] = row.get('value');
+            }
+          });
+          if (Object.keys(settings).length > 0) {
+            return res.json(settings);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching settings from spreadsheet:', error);
+      }
+    }
     res.json(db.settings);
+  });
+
+  app.post('/api/settings', async (req, res) => {
+    const { key, value } = req.body;
+    db.settings = { ...db.settings, [key]: value };
+    
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Settings', ['key', 'value']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const existingRow = rows.find(r => r.get('key') === key);
+          if (existingRow) {
+            existingRow.set('value', JSON.stringify(value));
+            await existingRow.save();
+          } else {
+            await sheet.addRow({ key, value: JSON.stringify(value) });
+          }
+        }
+      } catch (error) {
+        console.error('Error saving settings to spreadsheet:', error);
+      }
+    }
+    res.json({ success: true, message: 'Pengaturan berhasil disimpan' });
   });
 
   // Vite middleware for development

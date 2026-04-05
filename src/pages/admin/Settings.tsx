@@ -38,20 +38,29 @@ export default function AdminSettings() {
   });
   const [isSavingLeave, setIsSavingLeave] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from API on mount
   useEffect(() => {
-    const savedGeneral = localStorage.getItem('generalSettings');
-    if (savedGeneral) {
-      setGeneralSettings(JSON.parse(savedGeneral));
-    }
-    const savedAbsensi = localStorage.getItem('absensiSettings');
-    if (savedAbsensi) {
-      setAbsensiSettings(JSON.parse(savedAbsensi));
-    }
-    const savedLeave = localStorage.getItem('leaveSettings');
-    if (savedLeave) {
-      setLeaveSettings(JSON.parse(savedLeave));
-    }
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.generalSettings) setGeneralSettings(data.generalSettings);
+          if (data.absensiSettings) setAbsensiSettings(data.absensiSettings);
+          if (data.leaveSettings) setLeaveSettings(data.leaveSettings);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+        // Fallback to local storage
+        const savedGeneral = localStorage.getItem('generalSettings');
+        if (savedGeneral) setGeneralSettings(JSON.parse(savedGeneral));
+        const savedAbsensi = localStorage.getItem('absensiSettings');
+        if (savedAbsensi) setAbsensiSettings(JSON.parse(savedAbsensi));
+        const savedLeave = localStorage.getItem('leaveSettings');
+        if (savedLeave) setLeaveSettings(JSON.parse(savedLeave));
+      }
+    };
+    fetchSettings();
   }, []);
 
   const handleGeneralChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,31 +78,38 @@ export default function AdminSettings() {
     setLeaveSettings(prev => ({ ...prev, [id]: value }));
   };
 
+  const saveSetting = async (key: string, value: any, setSaving: (val: boolean) => void, successMessage: string) => {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value })
+      });
+      if (response.ok) {
+        localStorage.setItem(key, JSON.stringify(value));
+        toast.success(successMessage);
+      } else {
+        toast.error("Gagal menyimpan pengaturan ke server");
+      }
+    } catch (error) {
+      console.error(`Error saving ${key}:`, error);
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveGeneral = () => {
-    setIsSavingGeneral(true);
-    localStorage.setItem('generalSettings', JSON.stringify(generalSettings));
-    setTimeout(() => {
-      setIsSavingGeneral(false);
-      toast.success("Pengaturan Umum berhasil disimpan!");
-    }, 800);
+    saveSetting('generalSettings', generalSettings, setIsSavingGeneral, "Pengaturan Umum berhasil disimpan!");
   };
 
   const handleSaveAbsensi = () => {
-    setIsSavingAbsensi(true);
-    localStorage.setItem('absensiSettings', JSON.stringify(absensiSettings));
-    setTimeout(() => {
-      setIsSavingAbsensi(false);
-      toast.success("Pengaturan Absensi berhasil disimpan!");
-    }, 800);
+    saveSetting('absensiSettings', absensiSettings, setIsSavingAbsensi, "Pengaturan Absensi berhasil disimpan!");
   };
 
   const handleSaveLeave = () => {
-    setIsSavingLeave(true);
-    localStorage.setItem('leaveSettings', JSON.stringify(leaveSettings));
-    setTimeout(() => {
-      setIsSavingLeave(false);
-      toast.success("Pengaturan Izin & Cuti berhasil disimpan!");
-    }, 800);
+    saveSetting('leaveSettings', leaveSettings, setIsSavingLeave, "Pengaturan Izin & Cuti berhasil disimpan!");
   };
 
   const handleExportUsers = async () => {
