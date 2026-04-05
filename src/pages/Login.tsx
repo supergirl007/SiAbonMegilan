@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import { Activity } from 'lucide-react';
 
@@ -20,6 +21,9 @@ export default function Login() {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regGender, setRegGender] = useState('');
+  const [regCluster, setRegCluster] = useState('');
+  const [regUnit, setRegUnit] = useState('');
   
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
@@ -66,7 +70,15 @@ export default function Login() {
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nip: regNip, name: regName, email: regEmail, password: regPassword }),
+        body: JSON.stringify({ 
+          nip: regNip, 
+          name: regName, 
+          email: regEmail, 
+          password: regPassword,
+          gender: regGender,
+          cluster: regCluster,
+          unit: regUnit
+        }),
       });
 
       const data = await response.json();
@@ -77,6 +89,9 @@ export default function Login() {
         setRegName('');
         setRegEmail('');
         setRegPassword('');
+        setRegGender('');
+        setRegCluster('');
+        setRegUnit('');
         setView('login');
       } else {
         toast.error(data.message || 'Pendaftaran gagal');
@@ -249,6 +264,57 @@ export default function Login() {
                 required
               />
             </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="regGender">Jenis Kelamin</Label>
+                <Select value={regGender} onValueChange={setRegGender} required>
+                  <SelectTrigger id="regGender">
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Laki-laki">Laki-laki</SelectItem>
+                    <SelectItem value="Perempuan">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="regCluster">Klaster</Label>
+                <Select value={regCluster} onValueChange={setRegCluster} required>
+                  <SelectTrigger id="regCluster">
+                    <SelectValue placeholder="Pilih" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Klaster 1">Klaster 1</SelectItem>
+                    <SelectItem value="Klaster 2">Klaster 2</SelectItem>
+                    <SelectItem value="Klaster 3">Klaster 3</SelectItem>
+                    <SelectItem value="Klaster 4">Klaster 4</SelectItem>
+                    <SelectItem value="Klaster 5">Klaster 5</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="regUnit">Unit kerja/Unit Layanan</Label>
+              <Select value={regUnit} onValueChange={setRegUnit} required>
+                <SelectTrigger id="regUnit">
+                  <SelectValue placeholder="Pilih Unit Kerja" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Manajemen">Manajemen</SelectItem>
+                  <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+                  <SelectItem value="UGD/Rawat Inap">UGD/Rawat Inap</SelectItem>
+                  <SelectItem value="Poned">Poned</SelectItem>
+                  <SelectItem value="Pustu">Pustu</SelectItem>
+                  <SelectItem value="Polindes">Polindes</SelectItem>
+                  <SelectItem value="Ponkesdes">Ponkesdes</SelectItem>
+                  <SelectItem value="Armada">Armada</SelectItem>
+                  <SelectItem value="Kebersihan">Kebersihan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="regPassword">Kata Sandi</Label>
               <Input 
