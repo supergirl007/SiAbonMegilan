@@ -85,7 +85,7 @@ export default function AdminAttendance() {
   }, []);
 
   // Process attendance data for Harian
-  const processedHarian = attendanceData.filter(a => a.date === date).map(a => ({
+  const processedHarian = attendanceData.filter(a => a.date === today.toISOString().split('T')[0]).map(a => ({
     nama: a.name,
     nip: a.nip,
     kantor: a.location, // In a real app, map coordinates to office name
