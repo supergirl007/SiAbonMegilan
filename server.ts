@@ -61,11 +61,19 @@ async function startServer() {
   // Helper to get or create sheet
   async function getOrCreateSheet(title: string, headerValues: string[]) {
     if (!doc) return null;
-    let sheet = doc.sheetsByTitle[title];
-    if (!sheet) {
-      sheet = await doc.addSheet({ title, headerValues });
+    try {
+      // Ensure doc is loaded
+      if (!doc.title) await doc.loadInfo();
+      
+      let sheet = doc.sheetsByTitle[title];
+      if (!sheet) {
+        sheet = await doc.addSheet({ title, headerValues });
+      }
+      return sheet;
+    } catch (error) {
+      console.error('Error in getOrCreateSheet:', error);
+      return null;
     }
-    return sheet;
   }
 
   // API Routes
