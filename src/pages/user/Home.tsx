@@ -7,7 +7,7 @@ import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 
 export default function UserHome() {
   const webcamRef = useRef<Webcam>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locations, setLocations] = useState<{ id: string; name: string; coordinates: string }[]>([]);
   const [isLocating, setIsLocating] = useState(true);
   const [isAbsenting, setIsAbsenting] = useState(false);
@@ -34,7 +34,8 @@ export default function UserHome() {
         async (position) => {
           const userLat = position.coords.latitude;
           const userLng = position.coords.longitude;
-          setLocation({ lat: userLat, lng: userLng });
+          const accuracy = position.coords.accuracy;
+          setLocation({ lat: userLat, lng: userLng, accuracy });
           
           try {
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
@@ -44,7 +45,6 @@ export default function UserHome() {
             
             // Check if within range of any location by checking keyword match
             const withinRange = locations.some(loc => {
-              // Assuming loc.name contains the keyword like "Blawi"
               return detectedAddress.toLowerCase().includes(loc.name.toLowerCase());
             });
             setIsWithinRange(withinRange);
@@ -57,7 +57,8 @@ export default function UserHome() {
         (err) => {
           setError('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
           setIsLocating(false);
-        }
+        },
+        { enableHighAccuracy: true }
       );
     } else {
       setError('Geolocation tidak didukung oleh browser ini.');
@@ -132,9 +133,16 @@ export default function UserHome() {
             </Alert>
           )}
 
-          <div className="flex items-center gap-2 text-slate-400 text-sm">
-            <MapPin className="w-4 h-4 text-teal-500" />
-            {isLocating ? 'Mencari lokasi...' : location ? `Lokasi: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Lokasi tidak ditemukan'}
+          <div className="flex flex-col gap-1 text-slate-400 text-sm">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-teal-500" />
+              {isLocating ? 'Mencari lokasi...' : location ? `Lokasi: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Lokasi tidak ditemukan'}
+            </div>
+            {location && (
+              <div className="pl-6 text-xs">
+                Akurasi: {location.accuracy.toFixed(1)} meter | Status: Aktif
+              </div>
+            )}
           </div>
 
           <Button
