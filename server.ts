@@ -59,21 +59,25 @@ async function startServer() {
   }
 
   // Helper to get or create sheet
-  async function getOrCreateSheet(title: string, headerValues: string[]) {
+  async function getSheet(title: string) {
     if (!doc) return null;
     try {
       // Ensure doc is loaded
       if (!doc.title) await doc.loadInfo();
-      
-      let sheet = doc.sheetsByTitle[title];
-      if (!sheet) {
-        sheet = await doc.addSheet({ title, headerValues });
-      }
-      return sheet;
+      return doc.sheetsByTitle[title];
     } catch (error) {
-      console.error('Error in getOrCreateSheet:', error);
+      console.error(`Error getting sheet ${title}:`, error);
       return null;
     }
+  }
+
+  // Helper to get or create sheet
+  async function getOrCreateSheet(title: string, headerValues: string[]) {
+    let sheet = await getSheet(title);
+    if (!sheet && doc) {
+      sheet = await doc.addSheet({ title, headerValues });
+    }
+    return sheet;
   }
 
   // API Routes
@@ -127,7 +131,7 @@ async function startServer() {
     const { id } = req.params;
     if (doc) {
       try {
-        const sheet = doc.sheetsByTitle['Employees'];
+        const sheet = await getSheet('Employees');
         if (sheet) {
           const rows = await sheet.getRows();
           const rowToDelete = rows.find(r => r.get('id') === id);
@@ -195,7 +199,7 @@ async function startServer() {
     const { id } = req.params;
     if (doc) {
       try {
-        const sheet = doc.sheetsByTitle['Admins'];
+        const sheet = await getSheet('Admins');
         if (sheet) {
           const rows = await sheet.getRows();
           const rowToDelete = rows.find(r => r.get('id') === id);
@@ -218,7 +222,7 @@ async function startServer() {
     if (doc) {
       try {
         // Check Admins first
-        const adminSheet = doc.sheetsByTitle['Admins'];
+        const adminSheet = await getSheet('Admins');
         if (adminSheet) {
           const rows = await adminSheet.getRows();
           const row = rows.find(r => r.get('nip') === nip && r.get('password') === password && r.get('isActive') === 'true');
@@ -229,7 +233,7 @@ async function startServer() {
 
         // If not admin, check Users
         if (!user) {
-          const userSheet = doc.sheetsByTitle['Users'];
+          const userSheet = await getSheet('Users');
           if (userSheet) {
             const rows = await userSheet.getRows();
             const row = rows.find(r => r.get('nip') === nip && r.get('password') === password);
@@ -261,7 +265,7 @@ async function startServer() {
     let isValidEmployee = false;
     if (doc) {
       try {
-        const empSheet = doc.sheetsByTitle['Employees'];
+        const empSheet = await getSheet('Employees');
         if (empSheet) {
           const rows = await empSheet.getRows();
           isValidEmployee = rows.some(r => r.get('nip') === nip);
@@ -455,7 +459,7 @@ async function startServer() {
     const { id } = req.params;
     if (doc) {
       try {
-        const sheet = doc.sheetsByTitle['Locations'];
+        const sheet = await getSheet('Locations');
         if (sheet) {
           const rows = await sheet.getRows();
           const rowToDelete = rows.find(r => r.get('id') === id);
@@ -520,7 +524,7 @@ async function startServer() {
     const { id } = req.params;
     if (doc) {
       try {
-        const sheet = doc.sheetsByTitle['Shifts'];
+        const sheet = await getSheet('Shifts');
         if (sheet) {
           const rows = await sheet.getRows();
           const rowToDelete = rows.find(r => r.get('id') === id);

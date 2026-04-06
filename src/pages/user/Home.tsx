@@ -1,32 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { Camera, MapPin, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import Webcam from 'react-webcam';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 
 export default function UserHome() {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [actionType, setActionType] = useState<'in' | 'out' | null>(null);
   const webcamRef = useRef<Webcam>(null);
-
-  const [attendance, setAttendance] = useState({
-    in: null as string | null,
-    out: null as string | null,
-  });
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(true);
+  const [isAbsenting, setIsAbsenting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleLocation = () => {
-    setIsLocating(true);
-    if ('geolocation' in navigator) {
+    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({
@@ -34,164 +21,85 @@ export default function UserHome() {
             lng: position.coords.longitude,
           });
           setIsLocating(false);
-          setShowCamera(true);
         },
-        (error) => {
-          toast.error('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
+        (err) => {
+          setError('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
           setIsLocating(false);
         }
       );
     } else {
-      toast.error('Browser tidak mendukung Geolocation');
+      setError('Geolocation tidak didukung oleh browser ini.');
       setIsLocating(false);
     }
-  };
+  }, []);
 
-  const handleAbsenClick = (type: 'in' | 'out') => {
-    setActionType(type);
-    handleLocation();
-  };
+  const handleAbsen = async () => {
+    if (!webcamRef.current || !location) return;
 
-  const captureAndSubmit = async () => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc && location) {
-      try {
-        const timeString = format(new Date(), 'HH:mm');
-        const dateString = format(new Date(), 'yyyy-MM-dd');
-        
-        const attendanceData = {
-          nip: user?.nip,
-          name: user?.name,
-          date: dateString,
-          time: timeString,
-          type: actionType,
-          location: `${location.latitude}, ${location.longitude}`,
-          status: 'Hadir', // Simplified for prototype
-          photoUrl: imageSrc // In a real app, upload this to storage and save URL
-        };
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) return;
 
-        const response = await fetch('/api/attendance', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(attendanceData),
-        });
+    setIsAbsenting(true);
+    try {
+      const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: imageSrc,
+          location,
+          timestamp: new Date().toISOString(),
+        }),
+      });
 
-        if (response.ok) {
-          setAttendance(prev => ({ ...prev, [actionType!]: timeString }));
-          toast.success(`Absen ${actionType === 'in' ? 'Masuk' : 'Keluar'} berhasil!`);
-        } else {
-          toast.error('Gagal menyimpan absensi ke server');
-        }
-      } catch (error) {
-        console.error('Error saving attendance:', error);
-        toast.error('Terjadi kesalahan jaringan');
-      } finally {
-        setShowCamera(false);
-        setActionType(null);
-      }
+      if (!response.ok) throw new Error('Gagal melakukan absen');
+      alert('Absen berhasil!');
+    } catch (err) {
+      setError('Terjadi kesalahan saat absen.');
+    } finally {
+      setIsAbsenting(false);
     }
   };
 
-  if (showCamera) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 p-4">
-        <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-emerald-500/50 relative">
-          {/* @ts-expect-error react-webcam types require all props but they should be optional */}
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            videoConstraints={{ facingMode: "user" }}
-            className="w-full h-auto"
-          />
-          <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-            <Button 
-              onClick={captureAndSubmit}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full h-16 w-16 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.5)]"
-            >
-              <Camera className="h-8 w-8" />
-            </Button>
-          </div>
-        </div>
-        <Button 
-          variant="ghost" 
-          className="mt-6 text-slate-400"
-          onClick={() => setShowCamera(false)}
-        >
-          Batal
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 flex flex-col items-center min-h-full">
-      {/* Header / Date */}
-      <div className="w-full text-center mt-8 mb-12">
-        <h2 className="text-emerald-400 font-medium tracking-widest uppercase text-sm mb-2">
-          {format(currentTime, 'EEEE, dd MMMM yyyy', { locale: id })}
-        </h2>
-        <div className="text-6xl font-light tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-          {format(currentTime, 'HH:mm:ss')}
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
+      <Card className="w-full max-w-md bg-slate-900 border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.15)]">
+        <CardHeader>
+          <CardTitle className="text-teal-400 text-2xl font-bold flex items-center gap-2">
+            <Camera className="w-6 h-6" />
+            Absen Masuk
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="relative overflow-hidden rounded-xl border-2 border-teal-500/20">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full aspect-video object-cover"
+            />
+            <div className="absolute inset-0 border-2 border-teal-500/50 pointer-events-none" />
+          </div>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-12">
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center backdrop-blur-sm">
-          <span className="text-slate-400 text-xs uppercase tracking-wider mb-1">Masuk</span>
-          <span className={`text-2xl font-semibold ${attendance.in ? 'text-emerald-400' : 'text-slate-600'}`}>
-            {attendance.in || '--:--'}
-          </span>
-        </div>
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center backdrop-blur-sm">
-          <span className="text-slate-400 text-xs uppercase tracking-wider mb-1">Keluar</span>
-          <span className={`text-2xl font-semibold ${attendance.out ? 'text-emerald-400' : 'text-slate-600'}`}>
-            {attendance.out || '--:--'}
-          </span>
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="w-full max-w-sm space-y-4 mt-auto mb-8">
-        <Button
-          onClick={() => handleAbsenClick('in')}
-          disabled={!!attendance.in || isLocating}
-          className={`w-full h-16 rounded-2xl text-lg font-medium transition-all duration-300 ${
-            !attendance.in 
-              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]' 
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          {isLocating && actionType === 'in' ? (
-            <span className="flex items-center gap-2"><MapPin className="animate-bounce h-5 w-5" /> Mencari Lokasi...</span>
-          ) : attendance.in ? (
-            <span className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> Sudah Masuk</span>
-          ) : (
-            'Absen Masuk'
+          {error && (
+            <Alert variant="destructive" className="bg-red-950/50 border-red-900">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-        </Button>
 
-        <Button
-          onClick={() => handleAbsenClick('out')}
-          disabled={!attendance.in || !!attendance.out || isLocating}
-          className={`w-full h-16 rounded-2xl text-lg font-medium transition-all duration-300 ${
-            attendance.in && !attendance.out
-              ? 'bg-blue-500 hover:bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' 
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-          }`}
-        >
-          {isLocating && actionType === 'out' ? (
-            <span className="flex items-center gap-2"><MapPin className="animate-bounce h-5 w-5" /> Mencari Lokasi...</span>
-          ) : attendance.out ? (
-            <span className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> Sudah Keluar</span>
-          ) : (
-            'Absen Keluar'
-          )}
-        </Button>
-      </div>
+          <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <MapPin className="w-4 h-4 text-teal-500" />
+            {isLocating ? 'Mencari lokasi...' : location ? `Lokasi: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Lokasi tidak ditemukan'}
+          </div>
+
+          <Button
+            onClick={handleAbsen}
+            disabled={!location || isAbsenting}
+            className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
+          >
+            {isAbsenting ? 'Memproses...' : 'Absen Masuk'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
