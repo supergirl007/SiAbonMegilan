@@ -43,6 +43,7 @@ async function startServer() {
 
   // Google Spreadsheet Setup
   let doc: GoogleSpreadsheet | null = null;
+  let isDocLoaded = false;
   if (process.env.SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     try {
       const serviceAccountAuth = new JWT({
@@ -52,6 +53,7 @@ async function startServer() {
       });
       doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID, serviceAccountAuth);
       await doc.loadInfo();
+      isDocLoaded = true;
       console.log('Google Spreadsheet connected:', doc.title);
     } catch (error) {
       console.error('Failed to connect to Google Spreadsheet:', error);
@@ -63,7 +65,10 @@ async function startServer() {
     if (!doc) return null;
     try {
       // Ensure doc is loaded
-      if (!doc.title) await doc.loadInfo();
+      if (!isDocLoaded) {
+        await doc.loadInfo();
+        isDocLoaded = true;
+      }
       return doc.sheetsByTitle[title];
     } catch (error) {
       console.error(`Error getting sheet ${title}:`, error);
@@ -346,7 +351,10 @@ async function startServer() {
             date: row.get('date'),
             time: row.get('time'),
             type: row.get('type'),
-            location: row.get('location'),
+            location: (() => {
+              try { return JSON.parse(row.get('location')); }
+              catch (e) { return row.get('location'); }
+            })(),
             status: row.get('status'),
             photoUrl: row.get('photoUrl')
           }));
@@ -369,7 +377,8 @@ async function startServer() {
         if (sheet) {
           await sheet.addRow({
             id: Date.now().toString(),
-            ...attendanceData
+            ...attendanceData,
+            location: typeof attendanceData.location === 'object' ? JSON.stringify(attendanceData.location) : attendanceData.location
           });
         }
       } catch (error) {
