@@ -13,6 +13,7 @@ export default function UserHome() {
   const [isAbsenting, setIsAbsenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWithinRange, setIsWithinRange] = useState(false);
+  const [address, setAddress] = useState<string>('');
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -30,19 +31,27 @@ export default function UserHome() {
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const userLat = position.coords.latitude;
           const userLng = position.coords.longitude;
           setLocation({ lat: userLat, lng: userLng });
           
-          // Check if within range of any location
-          const withinRange = locations.some(loc => {
-            const [lat, lng] = loc.coordinates.split(',').map(Number);
-            const distance = getDistance(userLat, userLng, lat, lng);
-            return distance <= 100; // 100 meters threshold
-          });
-          setIsWithinRange(withinRange);
-          if (!withinRange) setError('Anda berada di luar jangkauan lokasi kerja.');
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
+            const data = await response.json();
+            const detectedAddress = data.display_name;
+            setAddress(detectedAddress);
+            
+            // Check if within range of any location by checking keyword match
+            const withinRange = locations.some(loc => {
+              // Assuming loc.name contains the keyword like "Blawi"
+              return detectedAddress.toLowerCase().includes(loc.name.toLowerCase());
+            });
+            setIsWithinRange(withinRange);
+            if (!withinRange) setError('Anda berada di luar jangkauan lokasi kerja.');
+          } catch (err) {
+            setError('Gagal memvalidasi lokasi.');
+          }
           setIsLocating(false);
         },
         (err) => {
@@ -56,23 +65,13 @@ export default function UserHome() {
     }
   }, [locations]);
 
-  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c * 1000; // Distance in meters
-  };
-
   const handleAbsen = async () => {
     if (!webcamRef.current || !location) return;
 
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) return;
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     setIsAbsenting(true);
     try {
@@ -80,9 +79,14 @@ export default function UserHome() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image: imageSrc,
-          location,
-          timestamp: new Date().toISOString(),
+          nip: user.nip || 'N/A',
+          name: user.name || 'N/A',
+          date: new Date().toISOString().split('T')[0],
+          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          type: 'in',
+          location: { lat: location.lat, lng: location.lng, address: address },
+          status: 'Hadir',
+          photoUrl: imageSrc,
         }),
       });
 
@@ -115,6 +119,9 @@ export default function UserHome() {
               forceScreenshotSourceSize={false}
               imageSmoothing={true}
               mirrored={false}
+              onUserMedia={() => {}}
+              onUserMediaError={() => {}}
+              screenshotQuality={1}
             />
             <div className="absolute inset-0 border-2 border-teal-500/50 pointer-events-none" />
           </div>
@@ -131,11 +138,11 @@ export default function UserHome() {
           </div>
 
           <Button
-            onClick={handleAbsen}
-            disabled={!location || isAbsenting || !isWithinRange}
+            onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/history?tab=izin'}
+            disabled={!location || isAbsenting}
             className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
           >
-            {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Di Luar Lokasi Kerja' : 'Absen Masuk'}
+            {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : 'Absen Masuk'}
           </Button>
         </CardContent>
       </Card>
