@@ -8,27 +8,45 @@ import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 export default function UserHome() {
   const webcamRef = useRef<Webcam>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
-  const [locations, setLocations] = useState<{ id: string; name: string; coordinates: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: string; desa: string; kecamatan: string; kabupaten: string; coordinates: string; radius: number }[]>([]);
   const [isLocating, setIsLocating] = useState(true);
   const [isAbsenting, setIsAbsenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWithinRange, setIsWithinRange] = useState(false);
   const [address, setAddress] = useState<string>('');
 
+  const [user, setUser] = useState<{name: string, nip: string, office: string} | null>(null);
+  const [settings, setSettings] = useState<any>(null);
+
   useEffect(() => {
-    const fetchLocations = async () => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/locations');
-        if (response.ok) {
-          const data = await response.json();
+        const [locRes, setRes] = await Promise.all([
+          fetch('/api/locations'),
+          fetch('/api/settings')
+        ]);
+        
+        if (locRes.ok) {
+          const data = await locRes.json();
           setLocations(data);
         }
+        if (setRes.ok) {
+          const data = await setRes.json();
+          setSettings(data);
+        }
       } catch (err) {
-        console.error('Failed to fetch locations:', err);
+        console.error('Failed to fetch data:', err);
       }
     };
-    fetchLocations();
+    fetchData();
+  }, []);
 
+  useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -43,12 +61,32 @@ export default function UserHome() {
             const detectedAddress = data.display_name;
             setAddress(detectedAddress);
             
-            // Check if within range of any location by checking keyword match
-            const withinRange = locations.some(loc => {
-              return detectedAddress.toLowerCase().includes(loc.name.toLowerCase());
+            // Check if within range of any location by checking keyword match AND distance
+            let withinRange = locations.some(loc => {
+              const [lat, lng] = loc.coordinates.split(',').map(Number);
+              const distance = getDistance(userLat, userLng, lat, lng);
+              // Check if address contains office address (desa)
+              const addressLower = detectedAddress.toLowerCase();
+              const officeAddress = user?.office?.toLowerCase() || '';
+              return (addressLower.includes(loc.desa.toLowerCase()) || 
+                      addressLower.includes(officeAddress)) && distance <= loc.radius;
             });
+
+            // Check if within range of main office (Kantor Induk)
+            if (!withinRange && settings?.generalSettings?.mainLocation) {
+              const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
+              const distanceToMain = getDistance(userLat, userLng, mainLat, mainLng);
+              if (distanceToMain <= 100) {
+                withinRange = true;
+              }
+            }
+
             setIsWithinRange(withinRange);
-            if (!withinRange) setError('Anda berada di luar jangkauan lokasi kerja.');
+            if (withinRange) {
+                // alert('Pengguna terdeteksi dan berada di dalam jangkauan wilayah kerja puskesmas');
+            } else {
+                setError('Anda berada di luar jangkauan lokasi kerja.');
+            }
           } catch (err) {
             setError('Gagal memvalidasi lokasi.');
           }
@@ -64,7 +102,19 @@ export default function UserHome() {
       setError('Geolocation tidak didukung oleh browser ini.');
       setIsLocating(false);
     }
-  }, [locations]);
+  }, [locations, user, settings]);
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c * 1000; // Distance in meters
+  };
 
   const handleAbsen = async () => {
     if (!webcamRef.current || !location) return;
@@ -108,6 +158,13 @@ export default function UserHome() {
             <Camera className="w-6 h-6" />
             Absen Masuk
           </CardTitle>
+          {user && (
+            <div className="text-slate-300 text-sm mt-2 space-y-1">
+              <p><strong>Nama:</strong> {user.name}</p>
+              <p><strong>NIP:</strong> {user.nip}</p>
+              <p><strong>Kantor:</strong> {user.office}</p>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="relative overflow-hidden rounded-xl border-2 border-teal-500/20">
@@ -136,7 +193,7 @@ export default function UserHome() {
           <div className="flex flex-col gap-1 text-slate-400 text-sm">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-teal-500" />
-              {isLocating ? 'Mencari lokasi...' : location ? `Lokasi: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Lokasi tidak ditemukan'}
+              {isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}
             </div>
             {location && (
               <div className="pl-6 text-xs">
@@ -146,7 +203,7 @@ export default function UserHome() {
           </div>
 
           <Button
-            onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/history?tab=izin'}
+            onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/leave'}
             disabled={!location || isAbsenting}
             className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
           >

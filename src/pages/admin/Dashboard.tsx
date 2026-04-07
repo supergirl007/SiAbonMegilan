@@ -1,7 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Clock, UserX } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function AdminDashboard() {
+  const [appName, setAppName] = useState("Si Abon Megilan");
+  const [companyName, setCompanyName] = useState("Puskesmas Sehat");
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.generalSettings?.appName) setAppName(data.generalSettings.appName);
+          if (data.generalSettings?.companyName) setCompanyName(data.generalSettings.companyName);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   const stats = [
     { title: "Total Karyawan", value: "124", icon: Users, color: "text-blue-600", bg: "bg-blue-100" },
     { title: "Hadir Hari Ini", value: "112", icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-100" },
@@ -12,8 +32,8 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500">Ringkasan absensi hari ini.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard {appName}</h1>
+        <p className="text-sm text-slate-500">Ringkasan absensi hari ini untuk {companyName}.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -23,8 +23,8 @@ async function startServer() {
   // Mock Database (In-Memory for Prototype)
   const db = {
     users: [
-      { id: 1, nip: '123456', name: 'Admin User', email: 'admin@puskesmas.com', role: 'admin', password: 'password' },
-      { id: 2, nip: '654321', name: 'Regular User', email: 'user@puskesmas.com', role: 'user', password: 'password' },
+      { id: 1, nip: '123456', name: 'Admin User', email: 'admin@puskesmas.com', role: 'admin', password: 'password', office: 'Kantor Induk' },
+      { id: 2, nip: '654321', name: 'Regular User', email: 'user@puskesmas.com', role: 'user', password: 'password', office: 'Pustu A' },
     ],
     employees: [
       { id: '1', name: 'Admin User', nip: '123456', office: 'Kantor Induk', email: 'admin@puskesmas.com', gender: 'Laki-laki', cluster: 'Klaster 1', unit: 'Manajemen' },
@@ -37,6 +37,9 @@ async function startServer() {
     settings: {
       appName: 'Si Abon Megilan',
       companyName: 'Puskesmas Sehat',
+      headName: 'Dr. Budi Santoso',
+      address: 'Jl. Kesehatan No. 1, Kota Sehat',
+      mainLocation: '-7.250445, 112.768845',
       tolerance: 15,
     }
   };
@@ -44,6 +47,10 @@ async function startServer() {
   // Google Spreadsheet Setup
   let doc: GoogleSpreadsheet | null = null;
   let isDocLoaded = false;
+  
+  // Cache for spreadsheet data
+  const cache: { [key: string]: { data: any; timestamp: number } } = {};
+  const CACHE_DURATION = 60 * 1000; // 1 minute cache
   if (process.env.SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     try {
       const serviceAccountAuth = new JWT({
@@ -69,7 +76,7 @@ async function startServer() {
         await doc.loadInfo();
         isDocLoaded = true;
       }
-      return doc.sheetsByTitle[title];
+      return doc.sheetsByTitle[title] || null;
     } catch (error) {
       console.error(`Error getting sheet ${title}:`, error);
       return null;
@@ -91,6 +98,9 @@ async function startServer() {
   app.get('/api/employees', async (req, res) => {
     if (doc) {
       try {
+        if (cache['employees'] && Date.now() - cache['employees'].timestamp < CACHE_DURATION) {
+          return res.json(cache['employees'].data);
+        }
         const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'email', 'gender', 'cluster', 'unit', 'password']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -105,6 +115,7 @@ async function startServer() {
             unit: row.get('unit'),
             password: row.get('password')
           }));
+          cache['employees'] = { data: employees, timestamp: Date.now() };
           return res.json(employees);
         }
       } catch (error) {
@@ -122,6 +133,7 @@ async function startServer() {
         const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'email', 'gender', 'cluster', 'unit', 'password']);
         if (sheet) {
           await sheet.addRow(employee);
+          delete cache['employees'];
         }
       } catch (error) {
         console.error('Error saving employee to spreadsheet:', error);
@@ -157,6 +169,9 @@ async function startServer() {
   app.get('/api/admins', async (req, res) => {
     if (doc) {
       try {
+        if (cache['admins'] && Date.now() - cache['admins'].timestamp < CACHE_DURATION) {
+          return res.json(cache['admins'].data);
+        }
         const sheet = await getOrCreateSheet('Admins', ['id', 'name', 'nip', 'email', 'phone', 'group', 'isActive', 'access', 'password']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -171,6 +186,7 @@ async function startServer() {
             access: row.get('access') ? JSON.parse(row.get('access')) : [],
             password: row.get('password')
           }));
+          cache['admins'] = { data: admins, timestamp: Date.now() };
           return res.json(admins);
         }
       } catch (error) {
@@ -192,6 +208,7 @@ async function startServer() {
             isActive: admin.isActive.toString(),
             access: JSON.stringify(admin.access)
           });
+          delete cache['admins'];
         }
       } catch (error) {
         console.error('Error saving admin to spreadsheet:', error);
@@ -207,9 +224,10 @@ async function startServer() {
         const sheet = await getSheet('Admins');
         if (sheet) {
           const rows = await sheet.getRows();
-          const rowToDelete = rows.find(r => r.get('id') === id);
+          const rowToDelete = rows.find(r => String(r.get('id')) === String(id));
           if (rowToDelete) {
             await rowToDelete.delete();
+            delete cache['admins'];
           }
         }
       } catch (error) {
@@ -243,7 +261,7 @@ async function startServer() {
             const rows = await userSheet.getRows();
             const row = rows.find(r => r.get('nip') === nip && r.get('password') === password);
             if (row) {
-              user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: row.get('role') };
+              user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: row.get('role'), office: row.get('office') };
             }
           }
         }
@@ -264,7 +282,7 @@ async function startServer() {
   });
 
   app.post('/api/register', async (req, res) => {
-    const { nip, name, email, password, gender, cluster, unit } = req.body;
+    const { nip, name, email, password, gender, cluster, unit, desa } = req.body;
     
     // 1. Validate NIP against Employees data
     let isValidEmployee = false;
@@ -317,13 +335,14 @@ async function startServer() {
       password,
       gender,
       cluster,
-      unit
+      unit,
+      office: desa
     };
 
     // Save to Google Spreadsheet if configured
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Users', ['id', 'nip', 'name', 'email', 'role', 'password', 'gender', 'cluster', 'unit']);
+        const sheet = await getOrCreateSheet('Users', ['id', 'nip', 'name', 'email', 'role', 'password', 'gender', 'cluster', 'unit', 'office']);
         if (sheet) {
           await sheet.addRow(newUser);
         }
@@ -429,14 +448,21 @@ async function startServer() {
   app.get('/api/locations', async (req, res) => {
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'coordinates']);
+        if (cache['locations'] && Date.now() - cache['locations'].timestamp < CACHE_DURATION) {
+          return res.json(cache['locations'].data);
+        }
+        const sheet = await getOrCreateSheet('Locations', ['id', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
         if (sheet) {
           const rows = await sheet.getRows();
           const locations = rows.map(row => ({
             id: row.get('id'),
-            name: row.get('name'),
-            coordinates: row.get('coordinates')
+            desa: row.get('desa'),
+            kecamatan: row.get('kecamatan'),
+            kabupaten: row.get('kabupaten'),
+            coordinates: row.get('coordinates'),
+            radius: row.get('radius') || 100
           }));
+          cache['locations'] = { data: locations, timestamp: Date.now() };
           return res.json(locations);
         }
       } catch (error) {
@@ -453,9 +479,17 @@ async function startServer() {
     const location = req.body;
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'coordinates']);
+        const sheet = await getOrCreateSheet('Locations', ['id', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
         if (sheet) {
-          await sheet.addRow(location);
+          await sheet.addRow({
+            id: Date.now().toString(),
+            desa: location.desa,
+            kecamatan: location.kecamatan,
+            kabupaten: location.kabupaten,
+            coordinates: location.coordinates,
+            radius: location.radius || 100
+          });
+          delete cache['locations'];
         }
       } catch (error) {
         console.error('Error saving location to spreadsheet:', error);
@@ -471,9 +505,10 @@ async function startServer() {
         const sheet = await getSheet('Locations');
         if (sheet) {
           const rows = await sheet.getRows();
-          const rowToDelete = rows.find(r => r.get('id') === id);
+          const rowToDelete = rows.find(r => String(r.get('id')) === String(id));
           if (rowToDelete) {
             await rowToDelete.delete();
+            delete cache['locations'];
           }
         }
       } catch (error) {

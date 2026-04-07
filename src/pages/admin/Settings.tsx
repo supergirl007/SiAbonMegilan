@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import ExcelJS from 'exceljs';
 
@@ -20,9 +20,10 @@ export default function AdminSettings() {
   const [generalSettings, setGeneralSettings] = useState({
     appName: "Si Abon Megilan",
     companyName: "Puskesmas Sehat",
-    pimpinanName: "Dr. Budi Santoso",
+    headName: "Dr. Budi Santoso",
     email: "info@puskesmas.com",
-    address: "Jl. Kesehatan No. 1"
+    address: "Jl. Kesehatan No. 1",
+    mainLocation: "-7.250445, 112.768845"
   });
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
 
@@ -38,6 +39,10 @@ export default function AdminSettings() {
   });
   const [isSavingLeave, setIsSavingLeave] = useState(false);
 
+  // State for Location Settings
+  const [locations, setLocations] = useState<{ id: string; desa: string; kecamatan: string; kabupaten: string; coordinates: string; radius: number }[]>([]);
+  const [isSavingLocations, setIsSavingLocations] = useState(false);
+
   // Load from API on mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -48,6 +53,12 @@ export default function AdminSettings() {
           if (data.generalSettings) setGeneralSettings(data.generalSettings);
           if (data.absensiSettings) setAbsensiSettings(data.absensiSettings);
           if (data.leaveSettings) setLeaveSettings(data.leaveSettings);
+        }
+        
+        const locResponse = await fetch('/api/locations');
+        if (locResponse.ok) {
+          const locData = await locResponse.json();
+          setLocations(locData);
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -156,6 +167,13 @@ export default function AdminSettings() {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">Umum</TabsTrigger>
+          <TabsTrigger value="absensi">Absensi</TabsTrigger>
+          <TabsTrigger value="leave">Izin & Cuti</TabsTrigger>
+          <TabsTrigger value="lokasi">Lokasi</TabsTrigger>
+          <TabsTrigger value="data">Data</TabsTrigger>
+        </TabsList>
         <TabsContent value="general">
           <Card>
             <CardHeader>
@@ -172,16 +190,21 @@ export default function AdminSettings() {
                 <Input id="companyName" value={generalSettings.companyName} onChange={handleGeneralChange} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="pimpinanName">Nama Kepala Puskesmas/Pimpinan</Label>
-                <Input id="pimpinanName" value={generalSettings.pimpinanName} onChange={handleGeneralChange} />
+                <Label htmlFor="headName">Nama Kepala Puskesmas/Pimpinan</Label>
+                <Input id="headName" value={generalSettings.headName} onChange={handleGeneralChange} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email Puskesmas/Perusahaan</Label>
                 <Input id="email" type="email" value={generalSettings.email} onChange={handleGeneralChange} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="address">Alamat</Label>
+                <Label htmlFor="address">Alamat Puskesmas</Label>
                 <Input id="address" value={generalSettings.address} onChange={handleGeneralChange} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="mainLocation">Koordinat Kantor Induk / Pusat</Label>
+                <Input id="mainLocation" value={generalSettings.mainLocation} onChange={handleGeneralChange} placeholder="-7.250445, 112.768845" />
+                <p className="text-xs text-slate-500">Karyawan yang berada dalam radius 100 meter dari koordinat ini dapat melakukan absensi.</p>
               </div>
               <Button className="mt-4" onClick={handleSaveGeneral} disabled={isSavingGeneral}>
                 {isSavingGeneral ? "Menyimpan..." : "Simpan Perubahan"}
@@ -220,6 +243,73 @@ export default function AdminSettings() {
               </div>
               <Button className="mt-4" onClick={handleSaveLeave} disabled={isSavingLeave}>
                 {isSavingLeave ? "Menyimpan..." : "Simpan Perubahan"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="lokasi">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pengaturan Lokasi</CardTitle>
+              <CardDescription>Kelola lokasi kantor dan radius geofence.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {locations.map(loc => (
+                <div key={loc.id} className="p-4 border rounded-lg space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input value={loc.desa} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, desa: e.target.value} : l))} placeholder="Desa" />
+                    <Input value={loc.kecamatan} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kecamatan: e.target.value} : l))} placeholder="Kecamatan" />
+                    <Input value={loc.kabupaten} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kabupaten: e.target.value} : l))} placeholder="Kabupaten" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold">{loc.desa}, {loc.kecamatan}, {loc.kabupaten}</h3>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`radius-${loc.id}`}>Radius (m):</Label>
+                      <Input 
+                        id={`radius-${loc.id}`} 
+                        type="number" 
+                        value={loc.radius} 
+                        onChange={(e) => {
+                          const newRadius = parseInt(e.target.value);
+                          setLocations(prev => prev.map(l => l.id === loc.id ? {...l, radius: newRadius} : l));
+                        }}
+                        className="w-20"
+                      />
+                    </div>
+                  </div>
+                  <div className="aspect-video w-full bg-slate-100 rounded-lg overflow-hidden">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      scrolling="no"
+                      marginHeight={0}
+                      marginWidth={0}
+                      src={`https://www.openstreetmap.org/export/embed.html?marker=${loc.coordinates.split(',')[0]},${loc.coordinates.split(',')[1]}&layer=mapnik`}
+                      style={{ border: '0' }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <Button onClick={async () => {
+                setIsSavingLocations(true);
+                try {
+                  for (const loc of locations) {
+                    await fetch('/api/locations', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(loc)
+                    });
+                  }
+                  toast.success("Pengaturan lokasi berhasil disimpan!");
+                } catch (error) {
+                  toast.error("Gagal menyimpan pengaturan lokasi");
+                } finally {
+                  setIsSavingLocations(false);
+                }
+              }} disabled={isSavingLocations}>
+                {isSavingLocations ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </CardContent>
           </Card>

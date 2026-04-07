@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, LayoutDashboard, Users, Clock, Settings, LogOut, Menu, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,24 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [appName, setAppName] = useState("Si Abon Megilan");
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.generalSettings?.appName) {
+            setAppName(data.generalSettings.appName);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -39,7 +58,7 @@ export default function AdminLayout() {
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center mr-8">
                 <Activity className="h-8 w-8 text-emerald-600 mr-2" />
-                <span className="font-bold text-xl text-slate-900 tracking-tight">Si Abon Megilan</span>
+                <span className="font-bold text-xl text-slate-900 tracking-tight">{appName}</span>
               </div>
               
               <nav className="hidden md:flex space-x-1">

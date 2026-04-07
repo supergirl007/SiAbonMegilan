@@ -24,6 +24,7 @@ export default function Login() {
   const [regGender, setRegGender] = useState('');
   const [regCluster, setRegCluster] = useState('');
   const [regUnit, setRegUnit] = useState('');
+  const [regDesa, setRegDesa] = useState('');
   
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
@@ -77,7 +78,8 @@ export default function Login() {
           password: regPassword,
           gender: regGender,
           cluster: regCluster,
-          unit: regUnit
+          unit: regUnit,
+          desa: regDesa
         }),
       });
 
@@ -92,6 +94,7 @@ export default function Login() {
         setRegGender('');
         setRegCluster('');
         setRegUnit('');
+        setRegDesa('');
         setView('login');
       } else {
         toast.error(data.message || 'Pendaftaran gagal');
@@ -313,6 +316,18 @@ export default function Login() {
                   <SelectItem value="Kebersihan">Kebersihan</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="regDesa">Lokasi Kantor</Label>
+              <Input 
+                id="regDesa" 
+                type="text" 
+                placeholder="Masukkan nama lokasi kantor" 
+                value={regDesa}
+                onChange={(e) => setRegDesa(e.target.value)}
+                required
+              />
             </div>
 
             <div className="space-y-2">
