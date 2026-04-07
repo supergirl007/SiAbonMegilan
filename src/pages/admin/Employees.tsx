@@ -32,7 +32,7 @@ export default function AdminEmployees() {
   const [newEmpUnit, setNewEmpUnit] = useState("");
 
   // State for Locations
-  const [locations, setLocations] = useState<{id: string, name: string, coordinates: string}[]>([]);
+  const [locations, setLocations] = useState<{id: string, desa: string, kecamatan: string, kabupaten: string, coordinates: string, radius: number}[]>([]);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [newLocName, setNewLocName] = useState("");
   const [newLocCoords, setNewLocCoords] = useState("");
@@ -125,8 +125,8 @@ export default function AdminEmployees() {
           setLocations(JSON.parse(savedLocations));
         } else {
           setLocations([
-            { id: "1", name: "Kantor Induk", coordinates: "-7.1234, 112.1234" },
-            { id: "2", name: "Pustu A", coordinates: "-7.1235, 112.1235" }
+            { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 100 },
+            { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 100 }
           ]);
         }
       }
@@ -231,8 +231,11 @@ export default function AdminEmployees() {
     if (newLocName && newLocCoords) {
       const newLocation = {
         id: Date.now().toString(),
-        name: newLocName,
-        coordinates: newLocCoords
+        desa: newLocName,
+        kecamatan: "",
+        kabupaten: "",
+        coordinates: newLocCoords,
+        radius: 100
       };
       
       try {
@@ -690,7 +693,7 @@ export default function AdminEmployees() {
                     <TableBody>
                       {locations.map((loc) => (
                         <TableRow key={loc.id}>
-                          <TableCell className="font-medium">{loc.name}</TableCell>
+                          <TableCell className="font-medium">{loc.desa || (loc as any).name}</TableCell>
                           <TableCell>{loc.coordinates}</TableCell>
                           <TableCell className="text-right">
                             <Button 

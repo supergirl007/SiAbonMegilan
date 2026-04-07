@@ -470,8 +470,8 @@ async function startServer() {
       }
     }
     res.json([
-      { id: "1", name: "Kantor Induk", coordinates: "-7.1234, 112.1234" },
-      { id: "2", name: "Pustu A", coordinates: "-7.1235, 112.1235" }
+      { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 100 },
+      { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 100 }
     ]);
   });
 
@@ -483,10 +483,10 @@ async function startServer() {
         if (sheet) {
           await sheet.addRow({
             id: Date.now().toString(),
-            desa: location.desa,
-            kecamatan: location.kecamatan,
-            kabupaten: location.kabupaten,
-            coordinates: location.coordinates,
+            desa: location.desa || '',
+            kecamatan: location.kecamatan || '',
+            kabupaten: location.kabupaten || '',
+            coordinates: location.coordinates || '',
             radius: location.radius || 100
           });
           delete cache['locations'];

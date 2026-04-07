@@ -50,9 +50,9 @@ export default function AdminSettings() {
         const response = await fetch('/api/settings');
         if (response.ok) {
           const data = await response.json();
-          if (data.generalSettings) setGeneralSettings(data.generalSettings);
-          if (data.absensiSettings) setAbsensiSettings(data.absensiSettings);
-          if (data.leaveSettings) setLeaveSettings(data.leaveSettings);
+          if (data.generalSettings) setGeneralSettings(prev => ({ ...prev, ...data.generalSettings }));
+          if (data.absensiSettings) setAbsensiSettings(prev => ({ ...prev, ...data.absensiSettings }));
+          if (data.leaveSettings) setLeaveSettings(prev => ({ ...prev, ...data.leaveSettings }));
         }
         
         const locResponse = await fetch('/api/locations');
@@ -64,11 +64,11 @@ export default function AdminSettings() {
         console.error('Failed to fetch settings:', error);
         // Fallback to local storage
         const savedGeneral = localStorage.getItem('generalSettings');
-        if (savedGeneral) setGeneralSettings(JSON.parse(savedGeneral));
+        if (savedGeneral) setGeneralSettings(prev => ({ ...prev, ...JSON.parse(savedGeneral) }));
         const savedAbsensi = localStorage.getItem('absensiSettings');
-        if (savedAbsensi) setAbsensiSettings(JSON.parse(savedAbsensi));
+        if (savedAbsensi) setAbsensiSettings(prev => ({ ...prev, ...JSON.parse(savedAbsensi) }));
         const savedLeave = localStorage.getItem('leaveSettings');
-        if (savedLeave) setLeaveSettings(JSON.parse(savedLeave));
+        if (savedLeave) setLeaveSettings(prev => ({ ...prev, ...JSON.parse(savedLeave) }));
       }
     };
     fetchSettings();
@@ -258,18 +258,18 @@ export default function AdminSettings() {
               {locations.map(loc => (
                 <div key={loc.id} className="p-4 border rounded-lg space-y-4">
                   <div className="grid grid-cols-3 gap-2">
-                    <Input value={loc.desa} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, desa: e.target.value} : l))} placeholder="Desa" />
-                    <Input value={loc.kecamatan} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kecamatan: e.target.value} : l))} placeholder="Kecamatan" />
-                    <Input value={loc.kabupaten} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kabupaten: e.target.value} : l))} placeholder="Kabupaten" />
+                    <Input value={loc.desa || ''} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, desa: e.target.value} : l))} placeholder="Desa" />
+                    <Input value={loc.kecamatan || ''} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kecamatan: e.target.value} : l))} placeholder="Kecamatan" />
+                    <Input value={loc.kabupaten || ''} onChange={(e) => setLocations(prev => prev.map(l => l.id === loc.id ? {...l, kabupaten: e.target.value} : l))} placeholder="Kabupaten" />
                   </div>
                   <div className="flex justify-between items-center">
-                    <h3 className="font-bold">{loc.desa}, {loc.kecamatan}, {loc.kabupaten}</h3>
+                    <h3 className="font-bold">{loc.desa || 'Desa'}, {loc.kecamatan || 'Kecamatan'}, {loc.kabupaten || 'Kabupaten'}</h3>
                     <div className="flex items-center gap-2">
                       <Label htmlFor={`radius-${loc.id}`}>Radius (m):</Label>
                       <Input 
                         id={`radius-${loc.id}`} 
                         type="number" 
-                        value={loc.radius} 
+                        value={loc.radius || 0} 
                         onChange={(e) => {
                           const newRadius = parseInt(e.target.value);
                           setLocations(prev => prev.map(l => l.id === loc.id ? {...l, radius: newRadius} : l));
@@ -286,7 +286,7 @@ export default function AdminSettings() {
                       scrolling="no"
                       marginHeight={0}
                       marginWidth={0}
-                      src={`https://www.openstreetmap.org/export/embed.html?marker=${loc.coordinates.split(',')[0]},${loc.coordinates.split(',')[1]}&layer=mapnik`}
+                      src={`https://www.openstreetmap.org/export/embed.html?marker=${(loc.coordinates || '0,0').split(',')[0]},${(loc.coordinates || '0,0').split(',')[1]}&layer=mapnik`}
                       style={{ border: '0' }}
                     />
                   </div>
