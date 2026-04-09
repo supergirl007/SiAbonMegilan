@@ -624,15 +624,22 @@ async function startServer() {
         if (sheet) {
           const rows = await sheet.getRows();
           const existingRow = rows.find(r => r.get('key') === key);
+          
+          // Google Sheets cell limit is 50,000 characters.
+          // If value is a large object (like generalSettings with appLogo), we might need to handle it carefully.
+          // For now, we stringify it. If it fails, we catch the error.
+          const stringifiedValue = JSON.stringify(value);
+          
           if (existingRow) {
-            existingRow.set('value', JSON.stringify(value));
+            existingRow.set('value', stringifiedValue);
             await existingRow.save();
           } else {
-            await sheet.addRow({ key, value: JSON.stringify(value) });
+            await sheet.addRow({ key, value: stringifiedValue });
           }
         }
       } catch (error) {
         console.error('Error saving settings to spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menyimpan ke spreadsheet. Mungkin ukuran data terlalu besar (misal: gambar logo).' });
       }
     }
     res.json({ success: true, message: 'Pengaturan berhasil disimpan' });

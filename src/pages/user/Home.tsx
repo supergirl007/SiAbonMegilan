@@ -46,7 +46,9 @@ export default function UserHome() {
     fetchData();
   }, []);
 
-  useEffect(() => {
+  const fetchLocation = () => {
+    setIsLocating(true);
+    setError(null);
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -98,12 +100,16 @@ export default function UserHome() {
           setError('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
           setIsLocating(false);
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       setError('Geolocation tidak didukung oleh browser ini.');
       setIsLocating(false);
     }
+  };
+
+  useEffect(() => {
+    fetchLocation();
   }, [locations, user, settings]);
 
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -193,10 +199,19 @@ export default function UserHome() {
             </Alert>
           )}
 
-          <div className="flex flex-col gap-1 text-slate-400 text-sm">
+          <div className="flex flex-col gap-2 text-slate-400 text-sm">
             <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-teal-500" />
-              {isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}
+              <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
+              <span className="flex-1">{isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchLocation} 
+                disabled={isLocating}
+                className="h-8 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 shrink-0"
+              >
+                Refresh
+              </Button>
             </div>
             {location && (
               <div className="pl-6 text-xs">

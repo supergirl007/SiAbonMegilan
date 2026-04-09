@@ -98,11 +98,12 @@ export default function AdminSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value })
       });
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.success !== false) {
         localStorage.setItem(key, JSON.stringify(value));
         toast.success(successMessage);
       } else {
-        toast.error("Gagal menyimpan pengaturan ke server");
+        toast.error(data.message || "Gagal menyimpan pengaturan ke server");
       }
     } catch (error) {
       console.error(`Error saving ${key}:`, error);
