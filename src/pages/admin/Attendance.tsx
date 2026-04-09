@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,7 +88,7 @@ export default function AdminAttendance() {
   const processedHarian = attendanceData.filter(a => a.date === today.toISOString().split('T')[0]).map(a => ({
     nama: a.name,
     nip: a.nip,
-    kantor: a.location, // In a real app, map coordinates to office name
+    kantor: typeof a.location === 'object' && a.location !== null ? a.location.address || JSON.stringify(a.location) : a.location,
     shift: "-", // Determine shift based on time
     status: a.status,
     jamMasuk: a.type === 'in' ? a.time : "-",
@@ -100,8 +100,40 @@ export default function AdminAttendance() {
     { nama: "Admin User", nip: "123456", kantor: "Kantor Induk", shift: "Pagi", status: "Hadir", jamMasuk: "07:45", jamKeluar: "-" }
   ];
 
-  // Mock data for Absensi Bulanan
-  const mockBulanan = [
+  // Process attendance data for Bulanan
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  const bulananData = employees.map(emp => {
+    const empAttendance = attendanceData.filter(a => a.nip === emp.nip);
+    const attendanceMap: any = {};
+    dates.forEach(date => {
+      const dayAtt = empAttendance.find(a => a.date === date);
+      attendanceMap[date] = dayAtt ? (dayAtt.status === 'Hadir' ? 'M' : 'D') : '-';
+    });
+    return {
+      nama: emp.name,
+      nip: emp.nip,
+      totalHours: empAttendance.length * 8 + " jam", // Simplified
+      attendance: attendanceMap
+    };
+  });
+
+  const displayBulanan = bulananData.length > 0 ? bulananData : [
     { nama: "Admin User", nip: "123456", totalHours: "120 jam", attendance: { [firstDayOfMonth]: "M", [new Date(today.getFullYear(), today.getMonth(), 2).toISOString().split('T')[0]]: "M", [new Date(today.getFullYear(), today.getMonth(), 3).toISOString().split('T')[0]]: "S" } },
     { nama: "Regular User", nip: "654321", totalHours: "105 jam", attendance: { [firstDayOfMonth]: "M", [new Date(today.getFullYear(), today.getMonth(), 2).toISOString().split('T')[0]]: "C", [new Date(today.getFullYear(), today.getMonth(), 3).toISOString().split('T')[0]]: "M" } }
   ];
@@ -116,11 +148,40 @@ export default function AdminAttendance() {
     }
   };
 
+  // State for Analisa Data Filter
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [filteredAttendance, setFilteredAttendance] = useState<any[]>(attendanceData);
+
+  const handleApplyFilter = () => {
+    const filtered = attendanceData.filter(a => {
+      const date = new Date(a.date);
+      return date.getMonth().toString() === selectedMonth && date.getFullYear().toString() === selectedYear;
+    });
+    setFilteredAttendance(filtered);
+  };
+
+  useEffect(() => {
+    setFilteredAttendance(attendanceData);
+  }, [attendanceData]);
+
+  const trenData = useMemo(() => {
+    return dates.map(date => {
+      const dayAtt = filteredAttendance.filter(a => a.date === date);
+      return {
+        date: new Date(date).getDate().toString(),
+        hadir: dayAtt.filter(a => a.type === 'in' && a.time <= '08:00').length,
+        terlambat: dayAtt.filter(a => a.type === 'in' && a.time > '08:00').length
+      };
+    });
+  }, [dates, filteredAttendance]);
+
   // State for Hari Libur
   const [holidays, setHolidays] = useState<{id: string, date: string, name: string}[]>([
     { id: "1", date: `${today.getFullYear()}-01-01`, name: "Tahun Baru Masehi" },
     { id: "2", date: `${today.getFullYear()}-08-17`, name: "Hari Kemerdekaan RI" }
   ]);
+
   const [isAddHolidayOpen, setIsAddHolidayOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState("");
@@ -253,7 +314,7 @@ export default function AdminAttendance() {
     worksheet.getRow(3).alignment = { horizontal: 'center' };
 
     // Add Data
-    mockBulanan.forEach((emp) => {
+    displayBulanan.forEach((emp) => {
       const rowData = [emp.nama, emp.nip, emp.totalHours];
       dates.forEach(date => {
         rowData.push(emp.attendance[date as keyof typeof emp.attendance] || '-');
@@ -405,7 +466,7 @@ export default function AdminAttendance() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockBulanan.map(emp => (
+                    {displayBulanan.map(emp => (
                       <TableRow key={emp.nip}>
                         <TableCell className="sticky left-0 bg-white z-10 border-r font-medium shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{emp.nama}</TableCell>
                         <TableCell className="sticky left-[150px] bg-white z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{emp.nip}</TableCell>
@@ -444,7 +505,7 @@ export default function AdminAttendance() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>Bulan</Label>
-                    <Select defaultValue={new Date().getMonth().toString()}>
+                    <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih Bulan" />
                       </SelectTrigger>
@@ -457,7 +518,7 @@ export default function AdminAttendance() {
                   </div>
                   <div className="space-y-2">
                     <Label>Tahun</Label>
-                    <Select defaultValue={new Date().getFullYear().toString()}>
+                    <Select value={selectedYear} onValueChange={setSelectedYear}>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih Tahun" />
                       </SelectTrigger>
@@ -468,7 +529,7 @@ export default function AdminAttendance() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button className="w-full">Terapkan Filter</Button>
+                  <Button className="w-full" onClick={handleApplyFilter}>Terapkan Filter</Button>
                 </CardContent>
               </Card>
             </div>
@@ -482,7 +543,7 @@ export default function AdminAttendance() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-blue-600 mb-1">Total Karyawan Aktif</p>
-                        <h3 className="text-3xl font-bold text-slate-900">124</h3>
+                        <h3 className="text-3xl font-bold text-slate-900">{employees.length}</h3>
                       </div>
                       <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                         <Users className="h-6 w-6" />
@@ -495,7 +556,7 @@ export default function AdminAttendance() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-emerald-600 mb-1">Tingkat Kehadiran</p>
-                        <h3 className="text-3xl font-bold text-slate-900">94.2%</h3>
+                        <h3 className="text-3xl font-bold text-slate-900">{employees.length > 0 ? ((filteredAttendance.filter(a => a.type === 'in').length / (employees.length * 20)) * 100).toFixed(1) : 0}%</h3>
                       </div>
                       <div className="h-12 w-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
                         <TrendingUp className="h-6 w-6" />
@@ -508,7 +569,7 @@ export default function AdminAttendance() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-rose-600 mb-1">Tingkat Keterlambatan</p>
-                        <h3 className="text-3xl font-bold text-slate-900">8.5%</h3>
+                        <h3 className="text-3xl font-bold text-slate-900">{filteredAttendance.filter(a => a.type === 'in').length > 0 ? ((filteredAttendance.filter(a => a.type === 'in' && a.time > '08:00').length / filteredAttendance.filter(a => a.type === 'in').length) * 100).toFixed(1) : 0}%</h3>
                       </div>
                       <div className="h-12 w-12 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
                         <Clock className="h-6 w-6" />
@@ -521,7 +582,7 @@ export default function AdminAttendance() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-amber-600 mb-1">Rata-rata Hadir Harian</p>
-                        <h3 className="text-3xl font-bold text-slate-900">116 <span className="text-sm font-normal text-slate-500">Org/Hari</span></h3>
+                        <h3 className="text-3xl font-bold text-slate-900">{Math.round(filteredAttendance.filter(a => a.type === 'in').length / 30)} <span className="text-sm font-normal text-slate-500">Org/Hari</span></h3>
                       </div>
                       <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-600">
                         <CalendarDays className="h-6 w-6" />
@@ -540,12 +601,7 @@ export default function AdminAttendance() {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={[
-                          { date: '1', hadir: 115, terlambat: 10 }, { date: '5', hadir: 118, terlambat: 8 },
-                          { date: '10', hadir: 120, terlambat: 5 }, { date: '15', hadir: 112, terlambat: 15 },
-                          { date: '20', hadir: 119, terlambat: 7 }, { date: '25', hadir: 122, terlambat: 4 },
-                          { date: '30', hadir: 117, terlambat: 9 }
-                        ]}>
+                        <AreaChart data={trenData}>
                           <defs>
                             <linearGradient id="colorHadir" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
