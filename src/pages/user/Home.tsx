@@ -23,6 +23,8 @@ export default function UserHome() {
   const [shiftEndTime, setShiftEndTime] = useState<string | null>(null);
   const [canCheckOut, setCanCheckOut] = useState(false);
   const [shifts, setShifts] = useState<any[]>([]);
+  const [leaveType, setLeaveType] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -59,7 +61,11 @@ export default function UserHome() {
           
           const inRecord = userAtt.find((a: any) => a.type === 'in');
           const outRecord = userAtt.find((a: any) => a.type === 'out');
+          const leaveRecord = userAtt.find((a: any) => ['izin', 'sakit', 'Cuti'].includes(a.type));
           
+          if (leaveRecord) {
+            setLeaveType(leaveRecord.type);
+          }
           if (inRecord) {
             setHasCheckedIn(true);
             setCheckInTime(inRecord.time);
@@ -111,6 +117,44 @@ export default function UserHome() {
       }
     }
   }, [hasCheckedIn, hasCheckedOut, shifts]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (hasCheckedIn && !hasCheckedOut && shiftEndTime) {
+      const calculateCountdown = () => {
+        const now = new Date();
+        const [endHour, endMinute] = shiftEndTime.split(':').map(Number);
+        
+        let shiftEnd = new Date();
+        shiftEnd.setHours(endHour, endMinute, 0, 0);
+        
+        const activeShift = shifts.find(s => s.isActive) || shifts[0];
+        if (activeShift && activeShift.crossesMidnight) {
+          const [startHour] = activeShift.startTime.split(':').map(Number);
+          if (now.getHours() >= startHour) {
+            shiftEnd.setDate(shiftEnd.getDate() + 1);
+          }
+        }
+        
+        const diff = shiftEnd.getTime() - now.getTime();
+        
+        if (diff > 0) {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          setCountdown(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        } else {
+          setCountdown('00:00:00');
+        }
+      };
+      
+      calculateCountdown();
+      interval = setInterval(calculateCountdown, 1000);
+    }
+    
+    return () => clearInterval(interval);
+  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts]);
 
   const fetchLocation = () => {
     setIsLocating(true);
@@ -285,11 +329,25 @@ export default function UserHome() {
           )}
         </CardHeader>
         <CardContent className="space-y-6">
-          {hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
+          {leaveType ? (
             <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
               <CheckCircle2 className="w-4 h-4 text-teal-500" />
-              <AlertDescription>
-                Anda telah melakukan absen MASUK pada {checkInTime}, Silahkan Absen Pulang pada Jam {shiftEndTime}.
+              <AlertDescription className="text-lg font-medium text-center py-4">
+                {leaveType === 'sakit' && "Semoga lekas sembuh dan diberikan kesehatan seperti sediakala. Aamiin"}
+                {leaveType === 'izin' && "Semoga segala urusannya dimudahkan"}
+                {leaveType === 'Cuti' && "Semoga hari - hari cuti anda bermanfaat"}
+              </AlertDescription>
+            </Alert>
+          ) : hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
+            <Alert className="bg-teal-950/50 border-teal-900 text-teal-400 flex flex-col items-center justify-center py-6">
+              <CheckCircle2 className="w-8 h-8 text-teal-500 mb-2" />
+              <AlertDescription className="text-center space-y-4">
+                <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
+                <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
+                <div className="mt-4">
+                  <p className="text-sm text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
+                  <p className="text-5xl font-mono font-bold text-white tracking-wider">{countdown}</p>
+                </div>
               </AlertDescription>
             </Alert>
           ) : hasCheckedOut ? (

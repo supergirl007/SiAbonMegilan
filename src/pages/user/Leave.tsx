@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +8,69 @@ import { toast } from 'sonner';
 
 export default function UserLeave() {
   const [loading, setLoading] = useState(false);
+  const [leaveType, setLeaveType] = useState<string>('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [reason, setReason] = useState('');
+  const [user, setUser] = useState<any>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!leaveType) {
+      toast.error('Pilih jenis izin terlebih dahulu');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
+
+    let type = '';
+    let status = '';
+
+    if (leaveType === 'izin') {
+      type = 'izin';
+      status = 'izin';
+    } else if (leaveType === 'sakit') {
+      type = 'sakit';
+      status = 'izin';
+    } else if (leaveType === 'cuti') {
+      type = 'Cuti';
+      status = 'Cuti';
+    }
+
+    try {
+      const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nip: user?.nip || 'N/A',
+          name: user?.name || 'N/A',
+          date: startDate,
+          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          type: type,
+          location: reason, // Store reason in location for now, or we can add a new column
+          status: status,
+          photoUrl: '', // No photo for leave
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal mengajukan izin');
+      }
+
       toast.success('Permintaan izin berhasil diajukan');
+      setTimeout(() => {
+        window.location.href = '/user/history';
+      }, 1000);
+    } catch (error) {
+      console.error(error);
+      toast.error('Terjadi kesalahan saat mengajukan izin');
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -34,7 +89,7 @@ export default function UserLeave() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="type" className="text-slate-300">Jenis Izin</Label>
-              <Select required>
+              <Select required value={leaveType} onValueChange={setLeaveType}>
                 <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-50">
                   <SelectValue placeholder="Pilih jenis izin" />
                 </SelectTrigger>
@@ -49,17 +104,17 @@ export default function UserLeave() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-slate-300">Mulai Tanggal</Label>
-                <Input id="startDate" type="date" required className="bg-slate-950 border-slate-800 text-slate-50 [color-scheme:dark]" />
+                <Input id="startDate" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-slate-950 border-slate-800 text-slate-50 [color-scheme:dark]" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="endDate" className="text-slate-300">Sampai Tanggal</Label>
-                <Input id="endDate" type="date" required className="bg-slate-950 border-slate-800 text-slate-50 [color-scheme:dark]" />
+                <Input id="endDate" type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-slate-950 border-slate-800 text-slate-50 [color-scheme:dark]" />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="reason" className="text-slate-300">Keterangan / Alasan</Label>
-              <Input id="reason" placeholder="Tuliskan alasan..." required className="bg-slate-950 border-slate-800 text-slate-50" />
+              <Input id="reason" placeholder="Tuliskan alasan..." required value={reason} onChange={(e) => setReason(e.target.value)} className="bg-slate-950 border-slate-800 text-slate-50" />
             </div>
 
             <div className="space-y-2">
