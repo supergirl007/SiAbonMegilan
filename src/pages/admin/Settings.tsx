@@ -19,6 +19,7 @@ export default function AdminSettings() {
   // State for General Settings
   const [generalSettings, setGeneralSettings] = useState({
     appName: "Si Abon Megilan",
+    appLogo: "",
     companyName: "Puskesmas Sehat",
     headName: "Dr. Budi Santoso",
     email: "info@puskesmas.com",
@@ -184,6 +185,61 @@ export default function AdminSettings() {
               <div className="grid gap-2">
                 <Label htmlFor="appName">Nama Aplikasi</Label>
                 <Input id="appName" value={generalSettings.appName} onChange={handleGeneralChange} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="appLogo">Logo Aplikasi (URL atau Base64)</Label>
+                <div className="flex gap-4 items-start">
+                  {generalSettings.appLogo && (
+                    <div className="w-16 h-16 rounded-md border flex items-center justify-center overflow-hidden bg-slate-50 shrink-0">
+                      <img src={generalSettings.appLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <Input 
+                      id="appLogo" 
+                      type="file" 
+                      accept=".jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              const MAX_WIDTH = 200;
+                              const MAX_HEIGHT = 200;
+                              let width = img.width;
+                              let height = img.height;
+
+                              if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                  height *= MAX_WIDTH / width;
+                                  width = MAX_WIDTH;
+                                }
+                              } else {
+                                if (height > MAX_HEIGHT) {
+                                  width *= MAX_HEIGHT / height;
+                                  height = MAX_HEIGHT;
+                                }
+                              }
+
+                              canvas.width = width;
+                              canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+                              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                              setGeneralSettings(prev => ({ ...prev, appLogo: dataUrl }));
+                            };
+                            img.src = reader.result as string;
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }} 
+                    />
+                    <p className="text-xs text-slate-500">Format yang didukung: JPG, JPEG, PNG. Maksimal 1MB.</p>
+                  </div>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="companyName">Nama Puskesmas/Perusahaan</Label>

@@ -21,11 +21,12 @@ export default function AdminEmployees() {
   };
 
   // State for Employees
-  const [employees, setEmployees] = useState<{id: string, name: string, nip: string, office: string, email: string, password?: string, gender?: string, cluster?: string, unit?: string}[]>([]);
+  const [employees, setEmployees] = useState<{id: string, name: string, nip: string, office: string, office2?: string, email: string, password?: string, gender?: string, cluster?: string, unit?: string}[]>([]);
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
   const [newEmpName, setNewEmpName] = useState("");
   const [newEmpNip, setNewEmpNip] = useState("");
   const [newEmpOffice, setNewEmpOffice] = useState("");
+  const [newEmpOffice2, setNewEmpOffice2] = useState("");
   const [newEmpEmail, setNewEmpEmail] = useState("");
   const [newEmpGender, setNewEmpGender] = useState("");
   const [newEmpCluster, setNewEmpCluster] = useState("");
@@ -35,6 +36,7 @@ export default function AdminEmployees() {
   const [locations, setLocations] = useState<{id: string, desa: string, kecamatan: string, kabupaten: string, coordinates: string, radius: number}[]>([]);
   const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
   const [newLocName, setNewLocName] = useState("");
+  const [newLocKecamatan, setNewLocKecamatan] = useState("");
   const [newLocCoords, setNewLocCoords] = useState("");
 
   // State for Shifts
@@ -164,6 +166,7 @@ export default function AdminEmployees() {
         name: newEmpName,
         nip: newEmpNip,
         office: newEmpOffice,
+        office2: newEmpOffice2 === "none" ? "" : newEmpOffice2,
         email: newEmpEmail,
         gender: newEmpGender,
         cluster: newEmpCluster,
@@ -190,6 +193,7 @@ export default function AdminEmployees() {
           setNewEmpName("");
           setNewEmpNip("");
           setNewEmpOffice("");
+          setNewEmpOffice2("");
           setNewEmpEmail("");
           setNewEmpGender("");
           setNewEmpCluster("");
@@ -228,11 +232,11 @@ export default function AdminEmployees() {
   };
 
   const handleAddLocation = async () => {
-    if (newLocName && newLocCoords) {
+    if (newLocName && newLocKecamatan && newLocCoords) {
       const newLocation = {
         id: Date.now().toString(),
         desa: newLocName,
-        kecamatan: "",
+        kecamatan: newLocKecamatan,
         kabupaten: "",
         coordinates: newLocCoords,
         radius: 100
@@ -253,6 +257,7 @@ export default function AdminEmployees() {
           localStorage.setItem('locationsData', JSON.stringify(updatedLocations));
           toast.success("Lokasi berhasil ditambahkan");
           setNewLocName("");
+          setNewLocKecamatan("");
           setNewLocCoords("");
           setIsAddLocationOpen(false);
         } else {
@@ -553,14 +558,28 @@ export default function AdminEmployees() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="emp-office">Alamat Kantor</Label>
+                      <Label htmlFor="emp-office">Alamat Kantor 1</Label>
                       <Select value={newEmpOffice} onValueChange={setNewEmpOffice}>
                         <SelectTrigger id="emp-office">
                           <SelectValue placeholder="Pilih Alamat Kantor" />
                         </SelectTrigger>
                         <SelectContent>
                           {locations.map(loc => (
-                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
+                            <SelectItem key={loc.id} value={loc.desa}>{loc.desa}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emp-office2">Alamat Kantor 2 (Opsional)</Label>
+                      <Select value={newEmpOffice2} onValueChange={setNewEmpOffice2}>
+                        <SelectTrigger id="emp-office2">
+                          <SelectValue placeholder="Pilih Alamat Kantor 2" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tidak Ada</SelectItem>
+                          {locations.map(loc => (
+                            <SelectItem key={loc.id} value={loc.desa}>{loc.desa}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -599,7 +618,8 @@ export default function AdminEmployees() {
                         <TableHead>L/P</TableHead>
                         <TableHead>Klaster</TableHead>
                         <TableHead>Unit Kerja</TableHead>
-                        <TableHead>Alamat Kantor</TableHead>
+                        <TableHead>Alamat Kantor 1</TableHead>
+                        <TableHead>Alamat Kantor 2</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
@@ -613,6 +633,7 @@ export default function AdminEmployees() {
                           <TableCell>{emp.cluster || "-"}</TableCell>
                           <TableCell>{emp.unit || "-"}</TableCell>
                           <TableCell>{emp.office}</TableCell>
+                          <TableCell>{emp.office2 || "-"}</TableCell>
                           <TableCell>{emp.email}</TableCell>
                           <TableCell className="text-right">
                             <Button 
@@ -657,6 +678,15 @@ export default function AdminEmployees() {
                         placeholder="Contoh: Desa Sukamaju" 
                         value={newLocName}
                         onChange={(e) => setNewLocName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="loc-kecamatan">Kecamatan</Label>
+                      <Input 
+                        id="loc-kecamatan" 
+                        placeholder="Contoh: Kecamatan Sukamaju" 
+                        value={newLocKecamatan}
+                        onChange={(e) => setNewLocKecamatan(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">

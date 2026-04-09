@@ -25,12 +25,36 @@ export default function Login() {
   const [regCluster, setRegCluster] = useState('');
   const [regUnit, setRegUnit] = useState('');
   const [regDesa, setRegDesa] = useState('');
-  
+  const [regOffice2, setRegOffice2] = useState('');
+
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
 
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const [appName, setAppName] = useState("Si Abon Megilan");
+  const [appLogo, setAppLogo] = useState("");
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.generalSettings?.appName) {
+            setAppName(data.generalSettings.appName);
+          }
+          if (data.generalSettings?.appLogo) {
+            setAppLogo(data.generalSettings.appLogo);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +103,8 @@ export default function Login() {
           gender: regGender,
           cluster: regCluster,
           unit: regUnit,
-          desa: regDesa
+          desa: regDesa,
+          office2: regOffice2
         }),
       });
 
@@ -95,6 +120,7 @@ export default function Login() {
         setRegCluster('');
         setRegUnit('');
         setRegDesa('');
+        setRegOffice2('');
         setView('login');
       } else {
         toast.error(data.message || 'Pendaftaran gagal');
@@ -139,11 +165,15 @@ export default function Login() {
         
         <div className="flex flex-col items-center mb-8">
           {/* Logo Joko Tingkir Placeholder */}
-          <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4">
-            <Activity className="w-10 h-10 text-emerald-600 dark:text-emerald-500" />
+          <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4 overflow-hidden">
+            {appLogo ? (
+              <img src={appLogo} alt="Logo" className="w-full h-full object-contain" />
+            ) : (
+              <Activity className="w-10 h-10 text-emerald-600 dark:text-emerald-500" />
+            )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 text-center">
-            {view === 'login' ? 'Selamat Datang Kembali!' : view === 'register' ? 'Buat Akun Baru' : 'Lupa Kata Sandi'}
+            {view === 'login' ? `Selamat Datang di ${appName}!` : view === 'register' ? 'Buat Akun Baru' : 'Lupa Kata Sandi'}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-2">
             {view === 'login' ? 'Masuk untuk mengakses dasbor Anda' : view === 'register' ? 'Daftar untuk mulai menggunakan aplikasi' : 'Masukkan email untuk mereset kata sandi Anda'}
@@ -319,14 +349,25 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="regDesa">Lokasi Kantor</Label>
+              <Label htmlFor="regDesa">Lokasi Kantor 1</Label>
               <Input 
                 id="regDesa" 
                 type="text" 
-                placeholder="Masukkan nama lokasi kantor" 
+                placeholder="Masukkan nama lokasi kantor utama" 
                 value={regDesa}
                 onChange={(e) => setRegDesa(e.target.value)}
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="regOffice2">Lokasi Kantor 2 (Opsional)</Label>
+              <Input 
+                id="regOffice2" 
+                type="text" 
+                placeholder="Masukkan nama lokasi kantor kedua" 
+                value={regOffice2}
+                onChange={(e) => setRegOffice2(e.target.value)}
               />
             </div>
 

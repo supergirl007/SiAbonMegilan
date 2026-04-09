@@ -18,6 +18,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [appName, setAppName] = useState("Si Abon Megilan");
+  const [appLogo, setAppLogo] = useState("");
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -27,6 +28,9 @@ export default function AdminLayout() {
           const data = await response.json();
           if (data.generalSettings?.appName) {
             setAppName(data.generalSettings.appName);
+          }
+          if (data.generalSettings?.appLogo) {
+            setAppLogo(data.generalSettings.appLogo);
           }
         }
       } catch (error) {
@@ -57,7 +61,11 @@ export default function AdminLayout() {
             {/* Logo and Desktop Nav */}
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center mr-8">
-                <Activity className="h-8 w-8 text-emerald-600 mr-2" />
+                {appLogo ? (
+                  <img src={appLogo} alt="Logo" className="h-8 w-8 mr-2 object-contain" />
+                ) : (
+                  <Activity className="h-8 w-8 text-emerald-600 mr-2" />
+                )}
                 <span className="font-bold text-xl text-slate-900 tracking-tight">{appName}</span>
               </div>
               

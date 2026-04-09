@@ -68,8 +68,10 @@ export default function UserHome() {
               // Check if address contains office address (desa)
               const addressLower = detectedAddress.toLowerCase();
               const officeAddress = user?.office?.toLowerCase() || '';
+              const officeAddress2 = user?.office2?.toLowerCase() || '';
               return (addressLower.includes(loc.desa.toLowerCase()) || 
-                      addressLower.includes(officeAddress)) && distance <= loc.radius;
+                      (officeAddress && addressLower.includes(officeAddress)) ||
+                      (officeAddress2 && addressLower.includes(officeAddress2))) && distance <= loc.radius;
             });
 
             // Check if within range of main office (Kantor Induk)
@@ -162,7 +164,8 @@ export default function UserHome() {
             <div className="text-slate-300 text-sm mt-2 space-y-1">
               <p><strong>Nama:</strong> {user.name}</p>
               <p><strong>NIP:</strong> {user.nip}</p>
-              <p><strong>Kantor:</strong> {user.office}</p>
+              <p><strong>Kantor 1:</strong> {user.office}</p>
+              {user.office2 && <p><strong>Kantor 2:</strong> {user.office2}</p>}
             </div>
           )}
         </CardHeader>
