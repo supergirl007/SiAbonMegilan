@@ -361,14 +361,22 @@ export default function AdminEmployees() {
     const updatedShift = { ...shiftToUpdate, isActive: !shiftToUpdate.isActive };
     
     try {
-      // We can use the POST endpoint to update since it adds or updates based on logic,
-      // but wait, the current POST endpoint in server.ts just adds a row.
-      // Let's just update local state and localStorage for now, or we need a PUT endpoint.
-      // For prototype, we'll just update local state and localStorage.
-      const updatedShifts = shifts.map(shift => shift.id === id ? updatedShift : shift);
-      setShifts(updatedShifts);
-      localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
-      toast.success("Status shift berhasil diubah");
+      const response = await fetch(`/api/shifts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedShift),
+      });
+
+      if (response.ok) {
+        const updatedShifts = shifts.map(shift => shift.id === id ? updatedShift : shift);
+        setShifts(updatedShifts);
+        localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
+        toast.success("Status shift berhasil diubah");
+      } else {
+        toast.error("Gagal mengubah status shift di server");
+      }
     } catch (error) {
       console.error("Error toggling shift status:", error);
       toast.error("Terjadi kesalahan jaringan");
@@ -450,11 +458,22 @@ export default function AdminEmployees() {
     const updatedAdmin = { ...adminToUpdate, isActive: !adminToUpdate.isActive };
     
     try {
-      // For prototype, we'll just update local state and localStorage.
-      const updatedAdmins = admins.map(admin => admin.id === id ? updatedAdmin : admin);
-      setAdmins(updatedAdmins);
-      localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
-      toast.success("Status admin berhasil diubah");
+      const response = await fetch(`/api/admins/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedAdmin),
+      });
+
+      if (response.ok) {
+        const updatedAdmins = admins.map(admin => admin.id === id ? updatedAdmin : admin);
+        setAdmins(updatedAdmins);
+        localStorage.setItem('adminsData', JSON.stringify(updatedAdmins));
+        toast.success("Status admin berhasil diubah");
+      } else {
+        toast.error("Gagal mengubah status admin di server");
+      }
     } catch (error) {
       console.error("Error toggling admin status:", error);
       toast.error("Terjadi kesalahan jaringan");

@@ -18,7 +18,8 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Mock Database (In-Memory for Prototype)
   const db = {
@@ -241,6 +242,36 @@ async function startServer() {
     res.json({ success: true, message: 'Admin berhasil dihapus' });
   });
 
+  app.put('/api/admins/:id', async (req, res) => {
+    const { id } = req.params;
+    const admin = req.body;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Admins');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToUpdate = rows.find(r => String(r.get('id')) === String(id));
+          if (rowToUpdate) {
+            rowToUpdate.set('name', admin.name);
+            rowToUpdate.set('nip', admin.nip);
+            rowToUpdate.set('email', admin.email);
+            rowToUpdate.set('phone', admin.phone);
+            rowToUpdate.set('group', admin.group);
+            rowToUpdate.set('isActive', admin.isActive.toString());
+            rowToUpdate.set('access', JSON.stringify(admin.access));
+            if (admin.password) rowToUpdate.set('password', admin.password);
+            await rowToUpdate.save();
+            delete cache['admins'];
+          }
+        }
+      } catch (error) {
+        console.error('Error updating admin in spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal memperbarui admin di spreadsheet' });
+      }
+    }
+    res.json({ success: true, message: 'Admin berhasil diperbarui' });
+  });
+
   // --- Auth API ---
   app.post('/api/login', async (req, res) => {
     const { nip, password } = req.body;
@@ -399,14 +430,26 @@ async function startServer() {
       try {
         const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
         if (sheet) {
+          // Google Sheets cell limit is 50,000 characters.
+          // Base64 images can easily exceed this.
+          let photoUrlToSave = attendanceData.photoUrl || '';
+          if (photoUrlToSave.length > 49000) {
+             // If it's too large, we can't save the full image in a single cell.
+             // Ideally, save to cloud storage and store URL. For now, truncate or store a placeholder.
+             photoUrlToSave = 'Image too large to save in spreadsheet';
+             console.warn('Attendance photoUrl exceeded 50000 characters, replacing with placeholder.');
+          }
+
           await sheet.addRow({
             id: Date.now().toString(),
             ...attendanceData,
+            photoUrl: photoUrlToSave,
             location: typeof attendanceData.location === 'object' ? JSON.stringify(attendanceData.location) : attendanceData.location
           });
         }
       } catch (error) {
         console.error('Error saving attendance to spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menyimpan absensi ke spreadsheet. Mungkin ukuran foto terlalu besar.' });
       }
     } else {
       db.attendance.push({ id: Date.now().toString(), ...attendanceData } as any);
@@ -586,6 +629,32 @@ async function startServer() {
       }
     }
     res.json({ success: true, message: 'Shift berhasil dihapus' });
+  });
+
+  app.put('/api/shifts/:id', async (req, res) => {
+    const { id } = req.params;
+    const shift = req.body;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Shifts');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToUpdate = rows.find(r => String(r.get('id')) === String(id));
+          if (rowToUpdate) {
+            rowToUpdate.set('name', shift.name);
+            rowToUpdate.set('startTime', shift.startTime);
+            rowToUpdate.set('endTime', shift.endTime);
+            rowToUpdate.set('crossesMidnight', shift.crossesMidnight.toString());
+            rowToUpdate.set('isActive', shift.isActive.toString());
+            await rowToUpdate.save();
+          }
+        }
+      } catch (error) {
+        console.error('Error updating shift in spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal memperbarui shift di spreadsheet' });
+      }
+    }
+    res.json({ success: true, message: 'Shift berhasil diperbarui' });
   });
 
   // --- Settings API ---
