@@ -85,6 +85,25 @@ async function startServer() {
     let sheet = await getSheet(title);
     if (!sheet && doc) {
       sheet = await doc.addSheet({ title, headerValues });
+    } else if (sheet) {
+      try {
+        await sheet.loadHeaderRow();
+        const currentHeaders = sheet.headerValues;
+        let headersChanged = false;
+        const newHeaders = [...currentHeaders];
+        for (const header of headerValues) {
+          if (!newHeaders.includes(header)) {
+            newHeaders.push(header);
+            headersChanged = true;
+          }
+        }
+        if (headersChanged) {
+          await sheet.setHeaderRow(newHeaders);
+        }
+      } catch (e) {
+        // If sheet is empty, loadHeaderRow might throw. Set headers directly.
+        await sheet.setHeaderRow(headerValues);
+      }
     }
     return sheet;
   }
@@ -500,9 +519,9 @@ async function startServer() {
           const rows = await sheet.getRows();
           const locations = rows.map(row => ({
             id: row.get('id'),
-            desa: row.get('desa'),
-            kecamatan: row.get('kecamatan'),
-            kabupaten: row.get('kabupaten'),
+            desa: row.get('desa') || row.get('name') || '',
+            kecamatan: row.get('kecamatan') || '',
+            kabupaten: row.get('kabupaten') || '',
             coordinates: row.get('coordinates'),
             radius: row.get('radius') || 100
           }));
