@@ -20,7 +20,7 @@ async function startServer() {
   // Mock Database (In-Memory for Prototype)
   const db = {
     users: [
-      { id: 1, nip: '123456', name: 'Admin User', email: 'admin@puskesmas.com', role: 'admin', password: 'password', office: 'Kantor Induk' },
+      { id: 1, nip: '123456', name: 'Admin User', email: 'admin@puskesmas.com', role: 'admin', password: 'password', office: 'Kantor Induk', group: 'Superadmin' },
       { id: 2, nip: '654321', name: 'Regular User', email: 'user@puskesmas.com', role: 'user', password: 'password', office: 'Pustu A' },
     ],
     employees: [
@@ -300,7 +300,18 @@ async function startServer() {
           const rows = await adminSheet.getRows();
           const row = rows.find(r => r.get('nip') === nip && r.get('password') === password && r.get('isActive') === 'true');
           if (row) {
-            user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: 'admin' };
+            let access = [];
+            try {
+              access = JSON.parse(row.get('access'));
+            } catch (e) {}
+            user = { 
+              id: row.get('id'), 
+              nip: row.get('nip'), 
+              name: row.get('name'), 
+              role: 'admin',
+              group: row.get('group'),
+              access
+            };
           }
         }
 
@@ -514,7 +525,7 @@ async function startServer() {
         if (cache['locations'] && Date.now() - cache['locations'].timestamp < CACHE_DURATION) {
           return res.json(cache['locations'].data);
         }
-        const sheet = await getOrCreateSheet('Locations', ['id', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
+        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
         if (sheet) {
           const rows = await sheet.getRows();
           const locations = rows.map(row => ({
@@ -542,10 +553,11 @@ async function startServer() {
     const location = req.body;
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Locations', ['id', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
+        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
         if (sheet) {
           await sheet.addRow({
             id: Date.now().toString(),
+            name: location.desa || '',
             desa: location.desa || '',
             kecamatan: location.kecamatan || '',
             kabupaten: location.kabupaten || '',

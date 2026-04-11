@@ -268,20 +268,22 @@ export default function UserHome() {
           
           let withinRange = false;
 
-          // 1. Jika alamat terdeteksi mengandung nama Kantor 1 atau Kantor 2, langsung izinkan absen tanpa cek koordinat
-          if ((officeAddress && addressLower && (addressLower.includes(officeAddress) || fullAddressLower.includes(officeAddress))) || 
-              (officeAddress2 && addressLower && (addressLower.includes(officeAddress2) || fullAddressLower.includes(officeAddress2)))) {
-            withinRange = true;
-          } else {
-            // 2. Jika tidak, cek berdasarkan jarak koordinat ke lokasi-lokasi yang ada
-            withinRange = locations.some(loc => {
-              if (!loc.coordinates) return false;
-              const [lat, lng] = loc.coordinates.split(',').map(Number);
-              if (isNaN(lat) || isNaN(lng)) return false;
-              const distance = getDistance(userLat, userLng, lat, lng);
-              return distance <= (loc.radius || 100);
-            });
-          }
+          // Cek berdasarkan jarak koordinat ke lokasi-lokasi yang sesuai dengan unit kerja user
+          withinRange = locations.some(loc => {
+            if (!loc.coordinates) return false;
+            
+            // Hanya cek lokasi yang namanya sesuai dengan office atau office2 user
+            const locNameLower = (loc.desa || loc.name || '').toLowerCase();
+            const isUserLocation = (officeAddress && locNameLower === officeAddress) || 
+                                   (officeAddress2 && locNameLower === officeAddress2);
+            
+            if (!isUserLocation) return false;
+
+            const [lat, lng] = loc.coordinates.split(',').map(Number);
+            if (isNaN(lat) || isNaN(lng)) return false;
+            const distance = getDistance(userLat, userLng, lat, lng);
+            return distance <= (loc.radius || 100);
+          });
 
           // Check if within range of main office (Kantor Induk)
           if (!withinRange && settings?.generalSettings?.mainLocation) {

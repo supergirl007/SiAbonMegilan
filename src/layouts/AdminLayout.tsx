@@ -52,6 +52,23 @@ export default function AdminLayout() {
     return location.pathname.startsWith(path);
   };
 
+  const hasAccess = (menuName: string) => {
+    if (user?.group === 'Superadmin') return true;
+    if (!user?.access) return false;
+    return user.access.includes(menuName);
+  };
+
+  const getCurrentMenu = () => {
+    if (location.pathname === '/admin') return 'Dashboard';
+    if (location.pathname.startsWith('/admin/attendance')) return 'Absensi';
+    if (location.pathname.startsWith('/admin/employees')) return 'Master Data';
+    if (location.pathname.startsWith('/admin/settings')) return 'Sistem';
+    return null;
+  };
+
+  const currentMenu = getCurrentMenu();
+  const isAuthorized = currentMenu ? hasAccess(currentMenu) : true;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Header & Navigation */}
@@ -70,103 +87,111 @@ export default function AdminLayout() {
               </div>
               
               <nav className="hidden md:flex space-x-1">
-                <Link
-                  to="/admin"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isPathActive('/admin') 
-                      ? 'bg-emerald-50 text-emerald-700' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Dashboard
-                  </div>
-                </Link>
+                {hasAccess('Dashboard') && (
+                  <Link
+                    to="/admin"
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isPathActive('/admin') 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </div>
+                  </Link>
+                )}
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
-                    isPathActive('/admin/attendance') 
-                      ? 'bg-emerald-50 text-emerald-700' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}>
-                    <Clock className="mr-2 h-4 w-4" />
-                    Absensi
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer" />}>
-                      Absen Harian
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer" />}>
-                      Absensi Bulanan
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer" />}>
-                      Analisa Data
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer" />}>
-                      Persetujuan Izin
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer" />}>
-                      Hari Libur
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer" />}>
-                      Pengumuman
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
-                    isPathActive('/admin/employees') 
-                      ? 'bg-emerald-50 text-emerald-700' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}>
-                    <Users className="mr-2 h-4 w-4" />
-                    Master Data
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer" />}>
-                      Karyawan
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer" />}>
-                      Alamat Kantor
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer" />}>
-                      Shift
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer" />}>
-                      Administrator
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
-                    isPathActive('/admin/settings') 
-                      ? 'bg-emerald-50 text-emerald-700' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Sistem
-                    <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer" />}>
-                      General
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer" />}>
+                {hasAccess('Absensi') && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
+                      isPathActive('/admin/attendance') 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}>
+                      <Clock className="mr-2 h-4 w-4" />
                       Absensi
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer" />}>
-                      Leave & Time off
-                    </DropdownMenuItem>
-                    <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer" />}>
-                      Data Management
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer" />}>
+                        Absen Harian
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer" />}>
+                        Absensi Bulanan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer" />}>
+                        Analisa Data
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer" />}>
+                        Persetujuan Izin
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer" />}>
+                        Hari Libur
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer" />}>
+                        Pengumuman
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {hasAccess('Master Data') && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
+                      isPathActive('/admin/employees') 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}>
+                      <Users className="mr-2 h-4 w-4" />
+                      Master Data
+                      <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer" />}>
+                        Karyawan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer" />}>
+                        Alamat Kantor
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer" />}>
+                        Shift
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer" />}>
+                        Administrator
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {hasAccess('Sistem') && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
+                      isPathActive('/admin/settings') 
+                        ? 'bg-emerald-50 text-emerald-700' 
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Sistem
+                      <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer" />}>
+                        General
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer" />}>
+                        Absensi
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer" />}>
+                        Leave & Time off
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer" />}>
+                        Data Management
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </nav>
             </div>
 
@@ -178,35 +203,52 @@ export default function AdminLayout() {
                     <Menu className="h-6 w-6" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem render={<Link to="/admin" className="w-full cursor-pointer" />}>
-                      <LayoutDashboard className="mr-2 h-4 w-4"/> Dashboard
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel>Absensi</DropdownMenuLabel>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer pl-6" />}>Absen Harian</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer pl-6" />}>Absensi Bulanan</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer pl-6" />}>Analisa Data</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6" />}>Persetujuan Izin</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer pl-6" />}>Hari Libur</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer pl-6" />}>Pengumuman</DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel>Master Data</DropdownMenuLabel>
-                      <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer pl-6" />}>Karyawan</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer pl-6" />}>Alamat Kantor</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer pl-6" />}>Shift</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer pl-6" />}>Administrator</DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel>Sistem</DropdownMenuLabel>
-                      <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>General</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer pl-6" />}>Absensi</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Leave & Time off</DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Data Management</DropdownMenuItem>
-                    </DropdownMenuGroup>
+                    {hasAccess('Dashboard') && (
+                      <>
+                        <DropdownMenuItem render={<Link to="/admin" className="w-full cursor-pointer" />}>
+                          <LayoutDashboard className="mr-2 h-4 w-4"/> Dashboard
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    
+                    {hasAccess('Absensi') && (
+                      <>
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Absensi</DropdownMenuLabel>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer pl-6" />}>Absen Harian</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer pl-6" />}>Absensi Bulanan</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer pl-6" />}>Analisa Data</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6" />}>Persetujuan Izin</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer pl-6" />}>Hari Libur</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer pl-6" />}>Pengumuman</DropdownMenuItem>
+                        </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+
+                    {hasAccess('Master Data') && (
+                      <>
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Master Data</DropdownMenuLabel>
+                          <DropdownMenuItem render={<Link to="/admin/employees?tab=karyawan" className="w-full cursor-pointer pl-6" />}>Karyawan</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/employees?tab=lokasi" className="w-full cursor-pointer pl-6" />}>Alamat Kantor</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/employees?tab=shift" className="w-full cursor-pointer pl-6" />}>Shift</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/employees?tab=admin" className="w-full cursor-pointer pl-6" />}>Administrator</DropdownMenuItem>
+                        </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+
+                    {hasAccess('Sistem') && (
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Sistem</DropdownMenuLabel>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>General</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer pl-6" />}>Absensi</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Leave & Time off</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Data Management</DropdownMenuItem>
+                      </DropdownMenuGroup>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -245,7 +287,22 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-slate-50">
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          {isAuthorized ? (
+            <Outlet />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+              <div className="bg-red-50 text-red-500 p-4 rounded-full mb-4">
+                <Activity className="h-12 w-12" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Akses Ditolak</h2>
+              <p className="text-slate-500 max-w-md">
+                Anda tidak memiliki hak akses untuk membuka halaman ini. Silakan hubungi Superadmin jika Anda membutuhkan akses.
+              </p>
+              <Button className="mt-6" onClick={() => navigate('/admin')}>
+                Kembali ke Dashboard
+              </Button>
+            </div>
+          )}
         </div>
       </main>
     </div>
