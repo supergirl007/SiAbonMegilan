@@ -47,8 +47,8 @@ export default function AdminAttendance() {
 
   // State for Absensi Bulanan
   const today = new Date();
-  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+  const firstDayOfMonth = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+  const lastDayOfMonth = format(new Date(today.getFullYear(), today.getMonth() + 1, 0), 'yyyy-MM-dd');
   
   const [startDate, setStartDate] = useState(firstDayOfMonth);
   const [endDate, setEndDate] = useState(lastDayOfMonth);
@@ -59,7 +59,7 @@ export default function AdminAttendance() {
     let currentDate = new Date(start);
     const stopDate = new Date(end);
     while (currentDate <= stopDate) {
-      dateArray.push(new Date(currentDate).toISOString().split('T')[0]);
+      dateArray.push(format(new Date(currentDate), 'yyyy-MM-dd'));
       currentDate.setDate(currentDate.getDate() + 1);
     }
     return dateArray;
@@ -85,7 +85,7 @@ export default function AdminAttendance() {
   }, []);
 
   // Process attendance data for Harian
-  const processedHarian = attendanceData.filter(a => a.date === today.toISOString().split('T')[0]).map(a => ({
+  const processedHarian = attendanceData.filter(a => a.date === format(today, 'yyyy-MM-dd')).map(a => ({
     nama: a.name,
     nip: a.nip,
     kantor: typeof a.location === 'object' && a.location !== null ? a.location.address || JSON.stringify(a.location) : a.location,
@@ -134,8 +134,8 @@ export default function AdminAttendance() {
   });
 
   const displayBulanan = bulananData.length > 0 ? bulananData : [
-    { nama: "Admin User", nip: "123456", totalHours: "120 jam", attendance: { [firstDayOfMonth]: "M", [new Date(today.getFullYear(), today.getMonth(), 2).toISOString().split('T')[0]]: "M", [new Date(today.getFullYear(), today.getMonth(), 3).toISOString().split('T')[0]]: "S" } },
-    { nama: "Regular User", nip: "654321", totalHours: "105 jam", attendance: { [firstDayOfMonth]: "M", [new Date(today.getFullYear(), today.getMonth(), 2).toISOString().split('T')[0]]: "C", [new Date(today.getFullYear(), today.getMonth(), 3).toISOString().split('T')[0]]: "M" } }
+    { nama: "Admin User", nip: "123456", totalHours: "120 jam", attendance: { [firstDayOfMonth]: "M", [format(new Date(today.getFullYear(), today.getMonth(), 2), 'yyyy-MM-dd')]: "M", [format(new Date(today.getFullYear(), today.getMonth(), 3), 'yyyy-MM-dd')]: "S" } },
+    { nama: "Regular User", nip: "654321", totalHours: "105 jam", attendance: { [firstDayOfMonth]: "M", [format(new Date(today.getFullYear(), today.getMonth(), 2), 'yyyy-MM-dd')]: "C", [format(new Date(today.getFullYear(), today.getMonth(), 3), 'yyyy-MM-dd')]: "M" } }
   ];
 
   const getStatusColor = (status: string) => {
@@ -165,8 +165,16 @@ export default function AdminAttendance() {
     setFilteredAttendance(attendanceData);
   }, [attendanceData]);
 
-  const trenData = useMemo(() => {
-    return dates.map(date => {
+  const {
+    trenData,
+    performaUnitData,
+    distribusiStatusData,
+    analisaKeterlambatanData,
+    earlyBirds,
+    frequentLate,
+    earlyRunners
+  } = useMemo(() => {
+    const trenData = dates.map(date => {
       const dayAtt = filteredAttendance.filter(a => a.date === date);
       return {
         date: new Date(date).getDate().toString(),
@@ -174,7 +182,130 @@ export default function AdminAttendance() {
         terlambat: dayAtt.filter(a => a.type === 'in' && a.time > '08:00').length
       };
     });
-  }, [dates, filteredAttendance]);
+
+    // Performa Unit Kerja
+    const unitMap: Record<string, { total: number, hadir: number }> = {};
+    employees.forEach(emp => {
+      const unit = typeof emp.location === 'object' && emp.location !== null ? emp.location.address || JSON.stringify(emp.location) : emp.location || 'Lainnya';
+      if (!unitMap[unit]) unitMap[unit] = { total: 0, hadir: 0 };
+      
+      const empAtt = filteredAttendance.filter(a => a.nip === emp.nip && a.type === 'in');
+      unitMap[unit].total += dates.length; // Assuming they should be present every day in the filtered range
+      unitMap[unit].hadir += empAtt.length;
+    });
+
+    const performaUnitData = Object.keys(unitMap).map(unit => ({
+      name: unit,
+      rate: unitMap[unit].total > 0 ? Math.round((unitMap[unit].hadir / unitMap[unit].total) * 100) : 0
+    })).sort((a, b) => b.rate - a.rate).slice(0, 6); // Top 6
+
+    // Distribusi Status Kehadiran (Group by Week)
+    const weeks = [
+      { name: 'Minggu 1', dates: dates.slice(0, 7) },
+      { name: 'Minggu 2', dates: dates.slice(7, 14) },
+      { name: 'Minggu 3', dates: dates.slice(14, 21) },
+      { name: 'Minggu 4', dates: dates.slice(21, 31) }
+    ].filter(w => w.dates.length > 0);
+
+    const distribusiStatusData = weeks.map(week => {
+      const weekAtt = filteredAttendance.filter(a => week.dates.includes(a.date));
+      const totalInWeek = employees.length * week.dates.length;
+      const hadir = weekAtt.filter(a => a.type === 'in').length;
+      const cuti = weekAtt.filter(a => a.type === 'Cuti' || a.type === 'cuti').length;
+      const sakit = weekAtt.filter(a => a.type === 'sakit' || a.type === 'Sakit').length;
+      const dinas = weekAtt.filter(a => a.type === 'izin' || a.type === 'Izin').length;
+      
+      return {
+        week: week.name,
+        hadir: totalInWeek > 0 ? Math.round((hadir / totalInWeek) * 100) : 0,
+        cuti: totalInWeek > 0 ? Math.round((cuti / totalInWeek) * 100) : 0,
+        sakit: totalInWeek > 0 ? Math.round((sakit / totalInWeek) * 100) : 0,
+        dinas: totalInWeek > 0 ? Math.round((dinas / totalInWeek) * 100) : 0
+      };
+    });
+
+    // Analisa Keterlambatan
+    const analisaKeterlambatanData = weeks.map(week => {
+      const weekAtt = filteredAttendance.filter(a => week.dates.includes(a.date) && a.type === 'in' && a.time > '08:00');
+      
+      let m0_15 = 0, m16_30 = 0, m30_60 = 0, m60plus = 0;
+      
+      weekAtt.forEach(a => {
+        const [h, m] = a.time.split(':').map(Number);
+        const lateMinutes = (h * 60 + m) - (8 * 60);
+        if (lateMinutes <= 15) m0_15++;
+        else if (lateMinutes <= 30) m16_30++;
+        else if (lateMinutes <= 60) m30_60++;
+        else m60plus++;
+      });
+
+      return {
+        week: week.name,
+        '0-15m': m0_15,
+        '16-30m': m16_30,
+        '30-60m': m30_60,
+        '>60m': m60plus
+      };
+    });
+
+    // Early Birds, Frequent Late, Early Runners
+    const empStats: Record<string, { name: string, dept: string, inTimes: number[], lateCount: number, earlyOutCount: number }> = {};
+    
+    employees.forEach(emp => {
+      const dept = typeof emp.location === 'object' && emp.location !== null ? emp.location.address || JSON.stringify(emp.location) : emp.location || 'Lainnya';
+      empStats[emp.nip] = { name: emp.name, dept, inTimes: [], lateCount: 0, earlyOutCount: 0 };
+    });
+
+    filteredAttendance.forEach(a => {
+      if (!empStats[a.nip]) return;
+      
+      if (a.type === 'in') {
+        const [h, m] = a.time.split(':').map(Number);
+        empStats[a.nip].inTimes.push(h * 60 + m);
+        if (h * 60 + m > 8 * 60) {
+          empStats[a.nip].lateCount++;
+        }
+      } else if (a.type === 'out') {
+        const [h, m] = a.time.split(':').map(Number);
+        if (h * 60 + m < 16 * 60) { // Assuming 16:00 is out time
+          empStats[a.nip].earlyOutCount++;
+        }
+      }
+    });
+
+    const earlyBirds = Object.values(empStats)
+      .filter(e => e.inTimes.length > 0)
+      .map(e => {
+        const avgMinutes = e.inTimes.reduce((sum, val) => sum + val, 0) / e.inTimes.length;
+        const h = Math.floor(avgMinutes / 60).toString().padStart(2, '0');
+        const m = Math.floor(avgMinutes % 60).toString().padStart(2, '0');
+        return { ...e, avgMinutes, time: `${h}:${m}` };
+      })
+      .sort((a, b) => a.avgMinutes - b.avgMinutes)
+      .slice(0, 5);
+
+    const frequentLate = Object.values(empStats)
+      .filter(e => e.lateCount > 0)
+      .sort((a, b) => b.lateCount - a.lateCount)
+      .map(e => ({ ...e, count: `${e.lateCount}x` }))
+      .slice(0, 5);
+
+    const earlyRunners = Object.values(empStats)
+      .filter(e => e.earlyOutCount > 0)
+      .sort((a, b) => b.earlyOutCount - a.earlyOutCount)
+      .map(e => ({ ...e, count: `${e.earlyOutCount}x` }))
+      .slice(0, 5);
+
+    return {
+      trenData,
+      performaUnitData: performaUnitData.length > 0 ? performaUnitData : [{ name: 'Belum ada data', rate: 0 }],
+      distribusiStatusData: distribusiStatusData.length > 0 ? distribusiStatusData : [{ week: 'Minggu 1', hadir: 0, cuti: 0, sakit: 0, dinas: 0 }],
+      analisaKeterlambatanData: analisaKeterlambatanData.length > 0 ? analisaKeterlambatanData : [{ week: 'Minggu 1', '0-15m': 0, '16-30m': 0, '30-60m': 0, '>60m': 0 }],
+      earlyBirds: earlyBirds.length > 0 ? earlyBirds : [{ name: "Belum ada data", dept: "-", time: "-" }],
+      frequentLate: frequentLate.length > 0 ? frequentLate : [{ name: "Belum ada data", dept: "-", count: "0x" }],
+      earlyRunners: earlyRunners.length > 0 ? earlyRunners : [{ name: "Belum ada data", dept: "-", count: "0x" }]
+    };
+  }, [dates, filteredAttendance, employees]);
 
   // State for Hari Libur
   const [holidays, setHolidays] = useState<{id: string, date: string, name: string}[]>([
@@ -289,7 +420,7 @@ export default function AdminAttendance() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Absensi_Harian_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `Absensi_Harian_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -631,11 +762,7 @@ export default function AdminAttendance() {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[
-                          { name: 'Poli Umum', rate: 96 }, { name: 'Poli Gigi', rate: 92 },
-                          { name: 'KIA', rate: 98 }, { name: 'Apotek', rate: 89 },
-                          { name: 'Tata Usaha', rate: 95 }, { name: 'UGD', rate: 99 }
-                        ]} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <BarChart data={performaUnitData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                           <XAxis type="number" domain={[0, 100]} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                           <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} width={80} />
@@ -657,12 +784,7 @@ export default function AdminAttendance() {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={[
-                          { week: 'Minggu 1', hadir: 95, cuti: 2, sakit: 1, dinas: 2 },
-                          { week: 'Minggu 2', hadir: 92, cuti: 3, sakit: 3, dinas: 2 },
-                          { week: 'Minggu 3', hadir: 96, cuti: 1, sakit: 1, dinas: 2 },
-                          { week: 'Minggu 4', hadir: 94, cuti: 2, sakit: 2, dinas: 2 }
-                        ]}>
+                        <LineChart data={distribusiStatusData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="week" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                           <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
@@ -684,12 +806,7 @@ export default function AdminAttendance() {
                   <CardContent>
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[
-                          { week: 'Minggu 1', '0-15m': 12, '16-30m': 5, '30-60m': 2, '>60m': 0 },
-                          { week: 'Minggu 2', '0-15m': 15, '16-30m': 8, '30-60m': 3, '>60m': 1 },
-                          { week: 'Minggu 3', '0-15m': 8, '16-30m': 3, '30-60m': 1, '>60m': 0 },
-                          { week: 'Minggu 4', '0-15m': 10, '16-30m': 4, '30-60m': 2, '>60m': 0 }
-                        ]}>
+                        <BarChart data={analisaKeterlambatanData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="week" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                           <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
@@ -718,13 +835,7 @@ export default function AdminAttendance() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-emerald-100">
-                      {[
-                        { name: "Budi Santoso", dept: "UGD", time: "06:45" },
-                        { name: "Siti Aminah", dept: "Poli Umum", time: "06:50" },
-                        { name: "Ahmad Fauzi", dept: "Tata Usaha", time: "06:52" },
-                        { name: "Dewi Lestari", dept: "Apotek", time: "06:55" },
-                        { name: "Rina Wati", dept: "KIA", time: "06:58" }
-                      ].map((person, idx) => (
+                      {earlyBirds.map((person, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 hover:bg-emerald-50/50 transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
@@ -752,13 +863,7 @@ export default function AdminAttendance() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-rose-100">
-                      {[
-                        { name: "Joko Widodo", dept: "Poli Gigi", count: "12x" },
-                        { name: "Agus Setiawan", dept: "Tata Usaha", count: "9x" },
-                        { name: "Sri Mulyani", dept: "Apotek", count: "7x" },
-                        { name: "Hendra Gunawan", dept: "Poli Umum", count: "6x" },
-                        { name: "Maya Sari", dept: "KIA", count: "5x" }
-                      ].map((person, idx) => (
+                      {frequentLate.map((person, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 hover:bg-rose-50/50 transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="h-6 w-6 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-bold">
@@ -786,13 +891,7 @@ export default function AdminAttendance() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-amber-100">
-                      {[
-                        { name: "Rudi Hermawan", dept: "Tata Usaha", count: "8x" },
-                        { name: "Nina Marlina", dept: "Poli Gigi", count: "6x" },
-                        { name: "Eko Prasetyo", dept: "Apotek", count: "5x" },
-                        { name: "Dian Sastro", dept: "Poli Umum", count: "4x" },
-                        { name: "Fajar Siddiq", dept: "UGD", count: "3x" }
-                      ].map((person, idx) => (
+                      {earlyRunners.map((person, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 hover:bg-amber-50/50 transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="h-6 w-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">

@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 
+import { format } from 'date-fns';
+
 export default function UserHome() {
   const webcamRef = useRef<Webcam>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
@@ -56,7 +58,7 @@ export default function UserHome() {
         if (attRes.ok) {
           const data = await attRes.json();
           const userData = JSON.parse(localStorage.getItem('user') || '{}');
-          const today = new Date().toISOString().split('T')[0];
+          const today = format(new Date(), 'yyyy-MM-dd');
           const userAtt = data.filter((a: any) => a.nip === userData.nip && a.date === today);
           
           const inRecord = userAtt.find((a: any) => a.type === 'in');
@@ -289,7 +291,7 @@ export default function UserHome() {
         body: JSON.stringify({
           nip: user.nip || 'N/A',
           name: user.name || 'N/A',
-          date: new Date().toISOString().split('T')[0],
+          date: format(new Date(), 'yyyy-MM-dd'),
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           type: hasCheckedIn ? 'out' : 'in',
           location: { lat: location.lat, lng: location.lng, address: address },

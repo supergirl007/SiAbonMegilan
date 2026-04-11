@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Clock, UserX } from "lucide-react";
 import { useState, useEffect } from "react";
 
+import { format } from 'date-fns';
+
 export default function AdminDashboard() {
   const [appName, setAppName] = useState("Si Abon Megilan");
   const [companyName, setCompanyName] = useState("Puskesmas Sehat");
@@ -50,7 +52,7 @@ export default function AdminDashboard() {
           if (data.generalSettings?.companyName) setCompanyName(data.generalSettings.companyName);
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = format(new Date(), 'yyyy-MM-dd');
         const todayAttendance = attendance.filter((a: any) => a.date === today);
         const presentToday = todayAttendance.filter((a: any) => a.type === 'in');
         

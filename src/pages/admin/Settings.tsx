@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import ExcelJS from 'exceljs';
 
+import { format } from 'date-fns';
+
 export default function AdminSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get("tab") || "general";
@@ -137,7 +139,7 @@ export default function AdminSettings() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Data_User_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `Data_User_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success("Data User berhasil diekspor!");
@@ -155,7 +157,7 @@ export default function AdminSettings() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Data_Absensi_Semua_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `Data_Absensi_Semua_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success("Data Absensi berhasil diekspor!");

@@ -40,6 +40,9 @@ export default function UserLeave() {
     } else if (leaveType === 'cuti') {
       type = 'Cuti';
       status = 'Cuti';
+    } else if (leaveType === 'dinas_luar') {
+      type = 'dinas_luar';
+      status = 'Dinas Luar';
     }
 
     try {
@@ -97,6 +100,7 @@ export default function UserLeave() {
                   <SelectItem value="sakit">Sakit</SelectItem>
                   <SelectItem value="cuti">Cuti Tahunan</SelectItem>
                   <SelectItem value="izin">Izin Keperluan Pribadi</SelectItem>
+                  <SelectItem value="dinas_luar">Dinas Luar</SelectItem>
                 </SelectContent>
               </Select>
             </div>
