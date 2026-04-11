@@ -12,6 +12,7 @@ export default function UserHome() {
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locations, setLocations] = useState<{ id: string; desa: string; kecamatan: string; kabupaten: string; coordinates: string; radius: number }[]>([]);
   const [isLocating, setIsLocating] = useState(true);
+  const [canRefresh, setCanRefresh] = useState(false);
   const [isAbsenting, setIsAbsenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWithinRange, setIsWithinRange] = useState(false);
@@ -160,69 +161,159 @@ export default function UserHome() {
 
   const fetchLocation = () => {
     setIsLocating(true);
+    setCanRefresh(false);
     setError(null);
+    
+    const timer = setTimeout(() => {
+        if (isLocating) {
+            setCanRefresh(true);
+        }
+    }, 10000);
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
+          clearTimeout(timer);
           const userLat = position.coords.latitude;
           const userLng = position.coords.longitude;
           const accuracy = position.coords.accuracy;
           setLocation({ lat: userLat, lng: userLng, accuracy });
           
+          let detectedAddress = `${userLat.toFixed(5)}, ${userLng.toFixed(5)}`;
+          let addressLower = '';
+          let fullAddressLower = '';
+
           try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
-            const data = await response.json();
-            const detectedAddress = data.display_name;
-            setAddress(detectedAddress);
-            
-            const addressLower = detectedAddress.toLowerCase();
-            const officeAddress = user?.office?.toLowerCase() || '';
-            const officeAddress2 = user?.office2?.toLowerCase() || '';
-            
-            let withinRange = false;
+            const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+            let googleMapsSuccess = false;
 
-            // 1. Jika alamat terdeteksi mengandung nama Kantor 1 atau Kantor 2, langsung izinkan absen tanpa cek koordinat
-            if ((officeAddress && addressLower.includes(officeAddress)) || 
-                (officeAddress2 && addressLower.includes(officeAddress2))) {
-              withinRange = true;
-            } else {
-              // 2. Jika tidak, cek berdasarkan jarak koordinat ke lokasi-lokasi yang ada
-              withinRange = locations.some(loc => {
-                const [lat, lng] = loc.coordinates.split(',').map(Number);
-                const distance = getDistance(userLat, userLng, lat, lng);
-                return distance <= loc.radius;
-              });
+            if (googleMapsApiKey) {
+              try {
+                const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLat},${userLng}&key=${googleMapsApiKey}`);
+                const data = await response.json();
+                if (data.results && data.results.length > 0) {
+                  const result = data.results[0];
+                  fullAddressLower = result.formatted_address.toLowerCase();
+                  
+                  const components = result.address_components;
+                  const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
+                  
+                  const village = getComponent('administrative_area_level_4') || getComponent('locality');
+                  const district = getComponent('administrative_area_level_3');
+                  const regency = getComponent('administrative_area_level_2');
+                  const state = getComponent('administrative_area_level_1');
+                  const country = getComponent('country');
+                  
+                  const parts = [];
+                  if (village) parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kelurahan') ? village : `Desa ${village}`);
+                  if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+                  if (regency) parts.push(regency);
+                  if (state) parts.push(state);
+                  if (country) parts.push(country);
+                  
+                  detectedAddress = parts.length > 0 ? parts.join(', ') : result.formatted_address;
+                  googleMapsSuccess = true;
+                } else {
+                  console.warn("Google Maps Geocoding failed, falling back to Nominatim", data);
+                }
+              } catch (gmapErr) {
+                console.warn("Google Maps Geocoding error, falling back to Nominatim", gmapErr);
+              }
             }
+            
+            if (!googleMapsSuccess) {
+              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
+              if (!response.ok) throw new Error("Nominatim request failed");
+              const data = await response.json();
+              
+              if (data && data.display_name) {
+                detectedAddress = data.display_name;
+                fullAddressLower = data.display_name.toLowerCase();
+                
+                if (data.address) {
+                  const parts = [];
+                  if (data.address.village) parts.push(`Desa ${data.address.village}`);
+                  else if (data.address.town) parts.push(data.address.town);
+                  else if (data.address.city) parts.push(data.address.city);
+                  
+                  const district = data.address.district || data.address.suburb;
+                  if (district) {
+                    parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+                  }
+                  
+                  const regency = data.address.county || data.address.city_district;
+                  if (regency) {
+                    parts.push(regency.toLowerCase().startsWith('kab') || regency.toLowerCase().startsWith('kota') ? regency : `Kabupaten ${regency}`);
+                  }
+                  
+                  if (data.address.state) parts.push(data.address.state);
+                  if (data.address.country) parts.push(data.address.country);
+                  
+                  if (parts.length > 0) {
+                    detectedAddress = parts.join(', ');
+                  }
+                }
+              }
+            }
+            addressLower = detectedAddress.toLowerCase();
+          } catch (err) {
+            console.error('Geocoding error:', err);
+            // Don't set error state here, we still have coordinates to check
+          }
+          
+          setAddress(detectedAddress);
+          
+          const officeAddress = user?.office?.toLowerCase() || '';
+          const officeAddress2 = user?.office2?.toLowerCase() || '';
+          
+          let withinRange = false;
 
-            // Check if within range of main office (Kantor Induk)
-            if (!withinRange && settings?.generalSettings?.mainLocation) {
-              const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
+          // 1. Jika alamat terdeteksi mengandung nama Kantor 1 atau Kantor 2, langsung izinkan absen tanpa cek koordinat
+          if ((officeAddress && addressLower && (addressLower.includes(officeAddress) || fullAddressLower.includes(officeAddress))) || 
+              (officeAddress2 && addressLower && (addressLower.includes(officeAddress2) || fullAddressLower.includes(officeAddress2)))) {
+            withinRange = true;
+          } else {
+            // 2. Jika tidak, cek berdasarkan jarak koordinat ke lokasi-lokasi yang ada
+            withinRange = locations.some(loc => {
+              if (!loc.coordinates) return false;
+              const [lat, lng] = loc.coordinates.split(',').map(Number);
+              if (isNaN(lat) || isNaN(lng)) return false;
+              const distance = getDistance(userLat, userLng, lat, lng);
+              return distance <= (loc.radius || 100);
+            });
+          }
+
+          // Check if within range of main office (Kantor Induk)
+          if (!withinRange && settings?.generalSettings?.mainLocation) {
+            const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
+            if (!isNaN(mainLat) && !isNaN(mainLng)) {
               const distanceToMain = getDistance(userLat, userLng, mainLat, mainLng);
               if (distanceToMain <= 100) {
                 withinRange = true;
               }
             }
+          }
 
-            setIsWithinRange(withinRange);
-            if (withinRange) {
-                // alert('Pengguna terdeteksi dan berada di dalam jangkauan wilayah kerja puskesmas');
-            } else {
-                setError('Anda berada di luar jangkauan lokasi kerja.');
-            }
-          } catch (err) {
-            setError('Gagal memvalidasi lokasi.');
+          setIsWithinRange(withinRange);
+          if (!withinRange) {
+              setError('Anda berada di luar jangkauan lokasi kerja.');
           }
           setIsLocating(false);
         },
         (err) => {
-          setError('Gagal mendapatkan lokasi. Pastikan GPS aktif.');
+          clearTimeout(timer);
+          console.error("Geolocation error:", err);
+          setError(`Gagal mendapatkan lokasi (${err.message}). Pastikan GPS aktif dan izin diberikan.`);
           setIsLocating(false);
+          setCanRefresh(true);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     } else {
+      clearTimeout(timer);
       setError('Geolocation tidak didukung oleh browser ini.');
       setIsLocating(false);
+      setCanRefresh(true);
     }
   };
 
@@ -392,10 +483,10 @@ export default function UserHome() {
                     variant="outline" 
                     size="sm" 
                     onClick={fetchLocation} 
-                    disabled={isLocating}
+                    disabled={isLocating && !canRefresh}
                     className="h-8 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 shrink-0"
                   >
-                    Refresh
+                    {isLocating && !canRefresh ? 'Mencari...' : 'Refresh'}
                   </Button>
                 </div>
                 {location && (

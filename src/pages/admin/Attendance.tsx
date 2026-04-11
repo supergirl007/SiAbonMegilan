@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer } from "lucide-react";
 import ExcelJS from 'exceljs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { format } from 'date-fns';
 
 export default function AdminAttendance() {
   const [searchParams, setSearchParams] = useSearchParams();
