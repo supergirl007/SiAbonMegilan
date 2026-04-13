@@ -146,7 +146,18 @@ export default function Login() {
       const data = await response.json();
 
       if (data.success) {
-        toast.success('Email reset password telah dikirim');
+        toast.success(data.message || 'Email reset password telah dikirim');
+        if (data.mockLink) {
+          console.log('Reset Link (Mock Mode):', data.mockLink);
+          // In a real app, we wouldn't show this in a toast, but it's helpful for testing without an email provider
+          toast.info('Mode Testing: Cek console untuk link reset, atau klik link ini', {
+            action: {
+              label: 'Buka Link',
+              onClick: () => window.location.href = data.mockLink
+            },
+            duration: 10000
+          });
+        }
         setForgotEmail('');
         setView('login');
       } else {

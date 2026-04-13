@@ -46,6 +46,7 @@ export default function AdminEmployees() {
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
   const [newShiftCrossesMidnight, setNewShiftCrossesMidnight] = useState(false);
+  const [newShiftIsActive, setNewShiftIsActive] = useState(true);
 
   // State for Admins
   const [admins, setAdmins] = useState<{id: string, name: string, nip: string, email: string, phone: string, group: string, isActive: boolean, access: string[]}[]>([]);
@@ -57,6 +58,7 @@ export default function AdminEmployees() {
   const [newAdminGroup, setNewAdminGroup] = useState("");
   const [newAdminPhone, setNewAdminPhone] = useState("");
   const [newAdminAccess, setNewAdminAccess] = useState<string[]>([]);
+  const [newAdminIsActive, setNewAdminIsActive] = useState(true);
 
   useEffect(() => {
     // Fetch employees from API
@@ -300,7 +302,7 @@ export default function AdminEmployees() {
         startTime: newShiftStart,
         endTime: newShiftEnd,
         crossesMidnight: newShiftCrossesMidnight,
-        isActive: true
+        isActive: newShiftIsActive
       };
       
       try {
@@ -321,6 +323,7 @@ export default function AdminEmployees() {
           setNewShiftStart("");
           setNewShiftEnd("");
           setNewShiftCrossesMidnight(false);
+          setNewShiftIsActive(true);
           setIsAddShiftOpen(false);
         } else {
           toast.error("Gagal menambahkan shift ke server");
@@ -393,7 +396,7 @@ export default function AdminEmployees() {
         password: newAdminPassword,
         group: newAdminGroup,
         phone: newAdminPhone,
-        isActive: true,
+        isActive: newAdminIsActive,
         access: newAdminAccess
       };
       
@@ -418,6 +421,7 @@ export default function AdminEmployees() {
           setNewAdminGroup("");
           setNewAdminPhone("");
           setNewAdminAccess([]);
+          setNewAdminIsActive(true);
           setIsAddAdminOpen(false);
         } else {
           toast.error("Gagal menambahkan admin ke server");
@@ -644,8 +648,8 @@ export default function AdminEmployees() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employees.map((emp) => (
-                        <TableRow key={emp.id}>
+                      {employees.map((emp, index) => (
+                        <TableRow key={`${emp.id}-${index}`}>
                           <TableCell className="font-medium">{emp.name}</TableCell>
                           <TableCell>{emp.nip}</TableCell>
                           <TableCell>{emp.gender === "Laki-laki" ? "L" : emp.gender === "Perempuan" ? "P" : "-"}</TableCell>
@@ -740,8 +744,8 @@ export default function AdminEmployees() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {locations.map((loc) => (
-                        <TableRow key={loc.id}>
+                      {locations.map((loc, index) => (
+                        <TableRow key={`${loc.id}-${index}`}>
                           <TableCell className="font-medium">{loc.desa || (loc as any).name}</TableCell>
                           <TableCell>{loc.coordinates}</TableCell>
                           <TableCell className="text-right">
@@ -819,6 +823,16 @@ export default function AdminEmployees() {
                         Melewati hari (besok) - Centang jika jam akhir berada di hari berikutnya.
                       </Label>
                     </div>
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Checkbox 
+                        id="shift-is-active" 
+                        checked={newShiftIsActive}
+                        onCheckedChange={(checked) => setNewShiftIsActive(checked as boolean)}
+                      />
+                      <Label htmlFor="shift-is-active" className="text-sm font-normal">
+                        Aktifkan Shift
+                      </Label>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddShiftOpen(false)}>Batal</Button>
@@ -844,8 +858,8 @@ export default function AdminEmployees() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {shifts.map((shift) => (
-                        <TableRow key={shift.id}>
+                      {shifts.map((shift, index) => (
+                        <TableRow key={`${shift.id}-${index}`}>
                           <TableCell className="font-medium">{shift.name}</TableCell>
                           <TableCell>{shift.startTime}</TableCell>
                           <TableCell>{shift.endTime}</TableCell>
@@ -981,6 +995,17 @@ export default function AdminEmployees() {
                         ))}
                       </div>
                     </div>
+                    
+                    <div className="flex items-center space-x-2 pt-4 border-t">
+                      <Checkbox 
+                        id="admin-is-active" 
+                        checked={newAdminIsActive}
+                        onCheckedChange={(checked) => setNewAdminIsActive(checked as boolean)}
+                      />
+                      <Label htmlFor="admin-is-active" className="text-sm font-normal">
+                        Aktifkan Admin
+                      </Label>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsAddAdminOpen(false)}>Batal</Button>
@@ -1006,8 +1031,8 @@ export default function AdminEmployees() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {admins.map((admin) => (
-                        <TableRow key={admin.id}>
+                      {admins.map((admin, index) => (
+                        <TableRow key={`${admin.id}-${index}`}>
                           <TableCell className="font-medium">{admin.name}</TableCell>
                           <TableCell>{admin.nip}</TableCell>
                           <TableCell>{admin.email}</TableCell>

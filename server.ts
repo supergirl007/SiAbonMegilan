@@ -290,6 +290,7 @@ async function startServer() {
   // --- Auth API ---
   app.post('/api/login', async (req, res) => {
     const { nip, password } = req.body;
+    console.log(`Login attempt for NIP: ${nip}`);
     
     let user = null;
     if (doc) {
@@ -312,6 +313,7 @@ async function startServer() {
               group: row.get('group'),
               access
             };
+            console.log('Admin found:', user.name);
           }
         }
 
@@ -323,21 +325,26 @@ async function startServer() {
             const row = rows.find(r => r.get('nip') === nip && r.get('password') === password);
             if (row) {
               user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
+              console.log('User found:', user.name);
             }
           }
         }
       } catch (error) {
         console.error('Error logging in from spreadsheet:', error);
+        // Add more context to the error
+        console.error('Spreadsheet configuration might be invalid or sheet missing.');
       }
     }
     
     if (!user) {
       user = db.users.find(u => u.nip === nip && u.password === password);
+      if (user) console.log('User found in mock DB:', user.name);
     }
 
     if (user) {
       res.json({ success: true, user });
     } else {
+      console.log('Login failed: User not found or incorrect password');
       res.status(401).json({ success: false, message: 'NIP atau Password salah' });
     }
   });
@@ -486,32 +493,227 @@ async function startServer() {
 
   app.post('/api/forgot-password', async (req, res) => {
     const { email } = req.body;
-    const user = db.users.find(u => u.email === email);
+    let foundUser = null;
+    let userType = '';
 
-    if (!user) {
+    if (doc) {
+      try {
+        // Check Admins
+        const adminSheet = await getSheet('Admins');
+        if (adminSheet) {
+          const rows = await adminSheet.getRows();
+          const admin = rows.find(r => r.get('email') === email);
+          if (admin) {
+            foundUser = { id: admin.get('id'), name: admin.get('name'), email: admin.get('email') };
+            userType = 'admin';
+          }
+        }
+
+        // Check Employees if not found
+        if (!foundUser) {
+          const empSheet = await getSheet('Employees');
+          if (empSheet) {
+            const rows = await empSheet.getRows();
+            const emp = rows.find(r => r.get('email') === email);
+            if (emp) {
+              foundUser = { id: emp.get('id'), name: emp.get('name'), email: emp.get('email') };
+              userType = 'employee';
+            }
+          }
+        }
+        
+        // Check Users if not found
+        if (!foundUser) {
+          const userSheet = await getSheet('Users');
+          if (userSheet) {
+            const rows = await userSheet.getRows();
+            const user = rows.find(r => r.get('email') === email);
+            if (user) {
+              foundUser = { id: user.get('id'), name: user.get('name'), email: user.get('email') };
+              userType = 'user';
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking email in spreadsheet:', error);
+      }
+    }
+
+    if (!foundUser) {
+      const user = db.users.find(u => u.email === email);
+      if (user) {
+        foundUser = user;
+        userType = 'user';
+      } else {
+        const emp = db.employees.find(e => e.email === email);
+        if (emp) {
+          foundUser = emp;
+          userType = 'employee';
+        }
+      }
+    }
+
+    if (!foundUser) {
       // Return success anyway to prevent email enumeration
       return res.json({ success: true, message: 'Jika email terdaftar, tautan reset telah dikirim.' });
     }
 
-    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=mock-token-${user.id}`;
+    // Generate a simple token (in a real app, use a secure random token and save it to DB with expiration)
+    const token = Buffer.from(`${foundUser.id}:${userType}:${Date.now()}`).toString('base64');
+    
+    // Save token to spreadsheet
+    if (doc) {
+      try {
+        const resetSheet = await getOrCreateSheet('PasswordResets', ['token', 'userId', 'userType', 'expiresAt']);
+        if (resetSheet) {
+          await resetSheet.addRow({
+            token,
+            userId: foundUser.id,
+            userType,
+            expiresAt: Date.now() + 3600000 // 1 hour
+          });
+        }
+      } catch (error) {
+        console.error('Error saving reset token:', error);
+      }
+    }
+
+    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
 
     if (resend) {
       try {
         await resend.emails.send({
           from: 'Si Abon Megilan <onboarding@resend.dev>',
-          to: user.email,
+          to: foundUser.email,
           subject: 'Reset Password - Si Abon Megilan',
-          html: `<p>Halo ${user.name},</p><p>Klik tautan berikut untuk mereset password Anda:</p><p><a href="${resetLink}">${resetLink}</a></p>`,
+          html: `<p>Halo ${foundUser.name},</p><p>Klik tautan berikut untuk mereset password Anda:</p><p><a href="${resetLink}">${resetLink}</a></p><p>Tautan ini akan kedaluwarsa dalam 1 jam.</p>`,
         });
       } catch (error) {
         console.error('Error sending email via Resend:', error);
-        return res.status(500).json({ success: false, message: 'Gagal mengirim email' });
+        return res.status(500).json({ success: false, message: 'Gagal mengirim email. Pastikan API Key Resend valid.' });
       }
     } else {
-      console.log(`[MOCK EMAIL] To: ${user.email}, Subject: Reset Password, Link: ${resetLink}`);
+      console.log(`[MOCK EMAIL] To: ${foundUser.email}, Subject: Reset Password, Link: ${resetLink}`);
+      // For testing without Resend API key, we return the link in the response (only in dev!)
+      return res.json({ success: true, message: 'Email reset password telah dikirim (Mock Mode)', mockLink: resetLink });
     }
 
     res.json({ success: true, message: 'Email reset password telah dikirim' });
+  });
+
+  app.post('/api/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Token dan password baru wajib diisi' });
+    }
+
+    let userId = '';
+    let userType = '';
+    let isValidToken = false;
+
+    if (doc) {
+      try {
+        const resetSheet = await getSheet('PasswordResets');
+        if (resetSheet) {
+          const rows = await resetSheet.getRows();
+          const tokenRow = rows.find(r => r.get('token') === token);
+          
+          if (tokenRow) {
+            const expiresAt = parseInt(tokenRow.get('expiresAt'));
+            if (Date.now() > expiresAt) {
+              return res.status(400).json({ success: false, message: 'Token reset password telah kedaluwarsa' });
+            }
+            userId = tokenRow.get('userId');
+            userType = tokenRow.get('userType');
+            isValidToken = true;
+            
+            // Delete used token
+            await tokenRow.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error verifying token:', error);
+      }
+    }
+
+    // Fallback to decoding token if not using spreadsheet (for mock DB)
+    if (!isValidToken) {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const parts = decoded.split(':');
+        if (parts.length === 3) {
+          userId = parts[0];
+          userType = parts[1];
+          const timestamp = parseInt(parts[2]);
+          if (Date.now() - timestamp < 3600000) {
+            isValidToken = true;
+          } else {
+            return res.status(400).json({ success: false, message: 'Token reset password telah kedaluwarsa' });
+          }
+        }
+      } catch (e) {
+        return res.status(400).json({ success: false, message: 'Token tidak valid' });
+      }
+    }
+
+    if (!isValidToken) {
+      return res.status(400).json({ success: false, message: 'Token tidak valid' });
+    }
+
+    // Update password
+    let passwordUpdated = false;
+    if (doc) {
+      try {
+        let sheetName = '';
+        if (userType === 'admin') sheetName = 'Admins';
+        else if (userType === 'employee') sheetName = 'Employees';
+        else if (userType === 'user') sheetName = 'Users';
+
+        if (sheetName) {
+          const sheet = await getSheet(sheetName);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            const userRow = rows.find(r => r.get('id') === userId);
+            if (userRow) {
+              userRow.set('password', newPassword);
+              await userRow.save();
+              passwordUpdated = true;
+              
+              // Clear cache
+              if (sheetName === 'Admins') delete cache['admins'];
+              if (sheetName === 'Employees') delete cache['employees'];
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error updating password:', error);
+        return res.status(500).json({ success: false, message: 'Gagal memperbarui password' });
+      }
+    }
+
+    if (!passwordUpdated) {
+      // Update mock DB
+      if (userType === 'admin' || userType === 'user') {
+        const user = db.users.find(u => u.id.toString() === userId);
+        if (user) {
+          user.password = newPassword;
+          passwordUpdated = true;
+        }
+      } else if (userType === 'employee') {
+        const emp = db.employees.find(e => e.id === userId);
+        if (emp) {
+          (emp as any).password = newPassword;
+          passwordUpdated = true;
+        }
+      }
+    }
+
+    if (passwordUpdated) {
+      res.json({ success: true, message: 'Password berhasil diperbarui' });
+    } else {
+      res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan' });
+    }
   });
 
   app.get('/api/users', (req, res) => {
