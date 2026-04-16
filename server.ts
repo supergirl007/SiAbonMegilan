@@ -903,14 +903,16 @@ async function startServer() {
   app.get('/api/announcements', async (req, res) => {
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Announcements', ['id', 'content', 'isActive', 'createdAt']);
+        const sheet = await getOrCreateSheet('Announcements', ['id', 'title', 'content', 'date', 'expiryDate', 'isActive']);
         if (sheet) {
           const rows = await sheet.getRows();
           const announcements = rows.map(row => ({
             id: row.get('id'),
+            title: row.get('title'),
             content: row.get('content'),
-            isActive: row.get('isActive') === 'true',
-            createdAt: row.get('createdAt')
+            date: row.get('date'),
+            expiryDate: row.get('expiryDate'),
+            isActive: row.get('isActive') === 'true'
           }));
           return res.json(announcements);
         }
@@ -925,12 +927,12 @@ async function startServer() {
     const announcement = req.body;
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Announcements', ['id', 'content', 'isActive', 'createdAt']);
+        const sheet = await getOrCreateSheet('Announcements', ['id', 'title', 'content', 'date', 'expiryDate', 'isActive']);
         if (sheet) {
           await sheet.addRow({
             ...announcement,
             isActive: announcement.isActive.toString(),
-            createdAt: announcement.createdAt || new Date().toISOString()
+            date: announcement.date || new Date().toISOString().split('T')[0]
           });
         }
       } catch (error) {
@@ -939,6 +941,48 @@ async function startServer() {
       }
     }
     res.json({ success: true, message: 'Pengumuman berhasil ditambahkan' });
+  });
+
+  app.put('/api/announcements/:id', async (req, res) => {
+    const { id } = req.params;
+    const { isActive } = req.body;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Announcements');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToUpdate = rows.find(r => r.get('id') === id);
+          if (rowToUpdate) {
+            rowToUpdate.set('isActive', isActive.toString());
+            await rowToUpdate.save();
+          }
+        }
+      } catch (error) {
+        console.error('Error updating announcement:', error);
+        return res.status(500).json({ success: false, message: 'Gagal update pengumuman' });
+      }
+    }
+    res.json({ success: true, message: 'Pengumuman diupdate' });
+  });
+
+  app.delete('/api/announcements/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Announcements');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting announcement:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menghapus pengumuman' });
+      }
+    }
+    res.json({ success: true, message: 'Pengumuman dihapus' });
   });
 
   // --- Settings API ---

@@ -93,19 +93,41 @@ export default function UserHome() {
   useEffect(() => {
     if (hasCheckedIn && !hasCheckedOut) {
       if (shifts.length > 0) {
-        const activeShift = shifts.find(s => s.isActive) || shifts[0];
-        if (activeShift) {
-          setShiftEndTime(activeShift.endTime);
+        const activeShifts = shifts.filter(s => s.isActive);
+        let targetShift = activeShifts[0] || shifts[0];
+        
+        if (activeShifts.length > 1 && checkInTime) {
+          const [inHour, inMin] = checkInTime.split(':').map(Number);
+          const checkInMinutes = inHour * 60 + inMin;
+          let minDiff = Infinity;
+
+          activeShifts.forEach(shift => {
+            const [startHour, startMin] = shift.startTime.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMin;
+            let diff = Math.abs(checkInMinutes - startMinutes);
+            if (diff > 720) diff = 1440 - diff;
+            if (diff < minDiff) {
+              minDiff = diff;
+              targetShift = shift;
+            }
+          });
+        }
+
+        if (targetShift) {
+          setShiftEndTime(targetShift.endTime);
           
           const now = new Date();
-          const [endHour, endMinute] = activeShift.endTime.split(':').map(Number);
+          const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
+          const [startHour] = targetShift.startTime.split(':').map(Number);
           
           let shiftEnd = new Date();
           shiftEnd.setHours(endHour, endMinute, 0, 0);
           
-          if (activeShift.crossesMidnight) {
-            const [startHour] = activeShift.startTime.split(':').map(Number);
-            if (now.getHours() >= startHour) {
+          // Handle cross-midnight shifts properly
+          if (startHour > endHour) {
+            // Jika jam sekarang >= jam masuk (contoh 22:00 > 20:00), maka shift berakhirmya BESOK
+            // Jika jam sekarang <= jam masuk, itu berarti kita sudah berada di hari berikutnya sebelum shift selesai
+            if (now.getHours() >= startHour - 2) { 
               shiftEnd.setDate(shiftEnd.getDate() + 1);
             }
           }
@@ -125,23 +147,44 @@ export default function UserHome() {
         setCanCheckOut(true);
       }
     }
-  }, [hasCheckedIn, hasCheckedOut, shifts]);
+  }, [hasCheckedIn, hasCheckedOut, shifts, checkInTime]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (hasCheckedIn && !hasCheckedOut && shiftEndTime) {
       const calculateCountdown = () => {
+        const activeShifts = shifts.filter(s => s.isActive);
+        let targetShift = activeShifts[0] || shifts[0];
+        
+        if (activeShifts.length > 1 && checkInTime) {
+          const [inHour, inMin] = checkInTime.split(':').map(Number);
+          const checkInMinutes = inHour * 60 + inMin;
+          let minDiff = Infinity;
+
+          activeShifts.forEach(shift => {
+            const [startHour, startMin] = shift.startTime.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMin;
+            let diff = Math.abs(checkInMinutes - startMinutes);
+            if (diff > 720) diff = 1440 - diff;
+            if (diff < minDiff) {
+              minDiff = diff;
+              targetShift = shift;
+            }
+          });
+        }
+        
+        if (!targetShift) return;
+
         const now = new Date();
-        const [endHour, endMinute] = shiftEndTime.split(':').map(Number);
+        const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
+        const [startHour] = targetShift.startTime.split(':').map(Number);
         
         let shiftEnd = new Date();
         shiftEnd.setHours(endHour, endMinute, 0, 0);
         
-        const activeShift = shifts.find(s => s.isActive) || shifts[0];
-        if (activeShift && activeShift.crossesMidnight) {
-          const [startHour] = activeShift.startTime.split(':').map(Number);
-          if (now.getHours() >= startHour) {
+        if (startHour > endHour) {
+          if (now.getHours() >= startHour - 2) {
             shiftEnd.setDate(shiftEnd.getDate() + 1);
           }
         }
@@ -163,7 +206,7 @@ export default function UserHome() {
     }
     
     return () => clearInterval(interval);
-  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts]);
+  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime]);
 
   const fetchLocation = () => {
     setIsLocating(true);
@@ -183,6 +226,9 @@ export default function UserHome() {
           const userLat = position.coords.latitude;
           const userLng = position.coords.longitude;
           const accuracy = position.coords.accuracy;
+          
+          console.log(`Detected Location: Lat ${userLat}, Lng ${userLng}, Accuracy ${accuracy}m`);
+          
           setLocation({ lat: userLat, lng: userLng, accuracy });
           
           let detectedAddress = `${userLat.toFixed(5)}, ${userLng.toFixed(5)}`;
@@ -276,31 +322,57 @@ export default function UserHome() {
           
           const officeAddress = user?.office?.toLowerCase() || '';
           const officeAddress2 = user?.office2?.toLowerCase() || '';
+          const locationNameLower = detectedAddress.toLowerCase();
           
           let withinRange = false;
+          let closestDistance = Infinity;
+          let activeRadius = 100;
 
-          // Cek berdasarkan jarak koordinat ke lokasi-lokasi yang sesuai dengan unit kerja user
-          withinRange = locations.some(loc => {
-            if (!loc.coordinates) return false;
-            
-            // Hanya cek lokasi yang namanya sesuai dengan office atau office2 user
-            const locNameLower = (loc.desa || loc.name || '').toLowerCase();
-            const isUserLocation = (officeAddress && locNameLower === officeAddress) || 
-                                   (officeAddress2 && locNameLower === officeAddress2);
-            
-            if (!isUserLocation) return false;
+          // 1. Cek berdasarkan kecocokan nama alamat (Name-based Approval)
+          // Jika lokasi terdeteksi (alamat dari geocoding) mengandung nama kantor, izinkan terlepas dari jarak
+          if (
+            (officeAddress && (locationNameLower.includes(officeAddress) || officeAddress.includes(locationNameLower))) ||
+            (officeAddress2 && (locationNameLower.includes(officeAddress2) || officeAddress2.includes(locationNameLower)))
+          ) {
+            withinRange = true;
+          }
 
-            const [lat, lng] = loc.coordinates.split(',').map(Number);
-            if (isNaN(lat) || isNaN(lng)) return false;
-            const distance = getDistance(userLat, userLng, lat, lng);
-            return distance <= (loc.radius || 100);
-          });
+          // 2. Cek berdasarkan jarak koordinat ke lokasi (Coordinate-based Approval)
+          // Hanya jika pendekatan nama (Name-based) gagal
+          if (!withinRange) {
+            withinRange = locations.some(loc => {
+              if (!loc.coordinates) return false;
+              
+              // Hanya cek lokasi yang namanya sesuai dengan office atau office2 user
+              const locNameLower = (loc.desa || loc.name || '').toLowerCase();
+              const isUserLocation = 
+                (officeAddress && (locNameLower.includes(officeAddress) || officeAddress.includes(locNameLower))) || 
+                (officeAddress2 && (locNameLower.includes(officeAddress2) || officeAddress2.includes(locNameLower)));
+              
+              if (!isUserLocation) return false;
+
+              const [lat, lng] = loc.coordinates.split(',').map(Number);
+              if (isNaN(lat) || isNaN(lng)) return false;
+              const distance = getDistance(userLat, userLng, lat, lng);
+              
+              if (distance < closestDistance) {
+                closestDistance = distance;
+                activeRadius = loc.radius || 100;
+              }
+              
+              return distance <= (loc.radius || 100);
+            });
+          }
 
           // Check if within range of main office (Kantor Induk)
           if (!withinRange && settings?.generalSettings?.mainLocation) {
             const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
             if (!isNaN(mainLat) && !isNaN(mainLng)) {
               const distanceToMain = getDistance(userLat, userLng, mainLat, mainLng);
+              if (distanceToMain < closestDistance) {
+                closestDistance = distanceToMain;
+                activeRadius = 100;
+              }
               if (distanceToMain <= 100) {
                 withinRange = true;
               }
@@ -309,7 +381,11 @@ export default function UserHome() {
 
           setIsWithinRange(withinRange);
           if (!withinRange) {
-              setError('Anda berada di luar jangkauan lokasi kerja.');
+              if (closestDistance !== Infinity) {
+                setError(`Berada di luar jangkauan radius (Jarak: ${Math.round(closestDistance)}m, Radius diizinkan: ${activeRadius}m). Akurasi GPS Anda: ${Math.round(accuracy)}m.`);
+              } else {
+                setError('Lokasi kerja tidak ditemukan di sistem atau pengaturan koordinat tidak valid.');
+              }
           }
           setIsLocating(false);
         },
@@ -409,7 +485,26 @@ export default function UserHome() {
         throw new Error(data.message || 'Gagal melakukan absen');
       }
       alert('Absensi berhasil dan terkirim ke Database Kepegawaian');
-      window.location.href = '/user/history';
+      
+      // Re-fetch attendance data to update UI instead of redirecting
+      const attRes = await fetch('/api/attendance');
+      if (attRes.ok) {
+        const data = await attRes.json();
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const userAtt = data.filter((a: any) => a.nip === userData.nip && a.date === today);
+        
+        const inRecord = userAtt.find((a: any) => a.type === 'in');
+        const outRecord = userAtt.find((a: any) => a.type === 'out');
+        
+        if (inRecord) {
+          setHasCheckedIn(true);
+          setCheckInTime(inRecord.time);
+        }
+        if (outRecord) {
+          setHasCheckedOut(true);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan saat absen.');
     } finally {
@@ -424,7 +519,10 @@ export default function UserHome() {
           <div className="space-y-2">
             {announcements.map((ann) => (
               <Alert key={ann.id} className="bg-blue-950/50 border-blue-900 text-blue-200">
-                <AlertDescription>{ann.content}</AlertDescription>
+                <AlertDescription>
+                  <strong className="block mb-1 text-blue-100">{ann.title}</strong>
+                  {ann.content}
+                </AlertDescription>
               </Alert>
             ))}
           </div>

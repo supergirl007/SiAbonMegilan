@@ -67,7 +67,7 @@ export default function UserLeave() {
 
       toast.success('Permintaan izin berhasil diajukan');
       setTimeout(() => {
-        window.location.href = '/user/history';
+        window.location.href = '/user'; // Return to home layout instead of history
       }, 1000);
     } catch (error) {
       console.error(error);

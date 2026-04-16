@@ -345,24 +345,51 @@ export default function AdminAttendance() {
   };
 
   // State for Pengumuman
-  const [announcements, setAnnouncements] = useState<{id: string, title: string, content: string, date: string, expiryDate: string, isActive: boolean}[]>([
-    { id: "1", title: "Rapat Bulanan", content: "Rapat bulanan akan diadakan pada hari Jumat.", date: "2026-04-01", expiryDate: "2026-04-10", isActive: true }
-  ]);
+  const [announcements, setAnnouncements] = useState<{id: string, title: string, content: string, date: string, expiryDate: string, isActive: boolean}[]>([]);
   const [isAddAnnouncementOpen, setIsAddAnnouncementOpen] = useState(false);
   const [newAnnouncementTitle, setNewAnnouncementTitle] = useState("");
   const [newAnnouncementContent, setNewAnnouncementContent] = useState("");
   const [newAnnouncementExpiry, setNewAnnouncementExpiry] = useState("");
 
-  const handleAddAnnouncement = () => {
+  const fetchAnnouncements = async () => {
+    try {
+      const res = await fetch('/api/announcements');
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncements(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  const handleAddAnnouncement = async () => {
     if (newAnnouncementTitle && newAnnouncementContent && newAnnouncementExpiry) {
-      setAnnouncements([{
+      const newAnn = {
         id: Date.now().toString(),
         title: newAnnouncementTitle,
         content: newAnnouncementContent,
         date: new Date().toISOString().split('T')[0],
         expiryDate: newAnnouncementExpiry,
         isActive: true
-      }, ...announcements]);
+      };
+      setAnnouncements([newAnn, ...announcements]); // Optimistic update
+      
+      try {
+        await fetch('/api/announcements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newAnn)
+        });
+        fetchAnnouncements();
+      } catch(e) {
+        console.error(e);
+      }
+
       setNewAnnouncementTitle("");
       setNewAnnouncementContent("");
       setNewAnnouncementExpiry("");
@@ -370,12 +397,31 @@ export default function AdminAttendance() {
     }
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
-    setAnnouncements(announcements.filter(a => a.id !== id));
+  const handleDeleteAnnouncement = async (id: string) => {
+    setAnnouncements(announcements.filter(a => a.id !== id)); // optimistically delete
+    try {
+      await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Failed to delete announcement', e);
+    }
   };
 
-  const handleToggleAnnouncementStatus = (id: string) => {
-    setAnnouncements(announcements.map(a => a.id === id ? { ...a, isActive: !a.isActive } : a));
+  const handleToggleAnnouncementStatus = async (id: string) => {
+    const ann = announcements.find(a => a.id === id);
+    if (!ann) return;
+    const newStatus = !ann.isActive;
+    
+    setAnnouncements(announcements.map(a => a.id === id ? { ...a, isActive: newStatus } : a)); // optimistically toggle
+    
+    try {
+      await fetch(`/api/announcements/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus })
+      });
+    } catch (e) {
+      console.error('Failed to update announcement', e);
+    }
   };
 
   const addSignature = (worksheet: ExcelJS.Worksheet, startRow: number, colIndex: number) => {
