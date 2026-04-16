@@ -899,6 +899,48 @@ async function startServer() {
     res.json({ success: true, message: 'Shift berhasil diperbarui' });
   });
 
+  // --- Announcements API ---
+  app.get('/api/announcements', async (req, res) => {
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Announcements', ['id', 'content', 'isActive', 'createdAt']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const announcements = rows.map(row => ({
+            id: row.get('id'),
+            content: row.get('content'),
+            isActive: row.get('isActive') === 'true',
+            createdAt: row.get('createdAt')
+          }));
+          return res.json(announcements);
+        }
+      } catch (error) {
+        console.error('Error fetching announcements from spreadsheet:', error);
+      }
+    }
+    res.json([]);
+  });
+
+  app.post('/api/announcements', async (req, res) => {
+    const announcement = req.body;
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Announcements', ['id', 'content', 'isActive', 'createdAt']);
+        if (sheet) {
+          await sheet.addRow({
+            ...announcement,
+            isActive: announcement.isActive.toString(),
+            createdAt: announcement.createdAt || new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('Error saving announcement to spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menyimpan pengumuman' });
+      }
+    }
+    res.json({ success: true, message: 'Pengumuman berhasil ditambahkan' });
+  });
+
   // --- Settings API ---
   app.get('/api/settings', async (req, res) => {
     if (doc) {

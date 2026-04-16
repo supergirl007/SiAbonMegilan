@@ -28,6 +28,7 @@ export default function UserHome() {
   const [shifts, setShifts] = useState<any[]>([]);
   const [leaveType, setLeaveType] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<string>('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -37,11 +38,12 @@ export default function UserHome() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [locRes, setRes, attRes, shiftRes] = await Promise.all([
+        const [locRes, setRes, attRes, shiftRes, annRes] = await Promise.all([
           fetch('/api/locations'),
           fetch('/api/settings'),
           fetch('/api/attendance'),
-          fetch('/api/shifts')
+          fetch('/api/shifts'),
+          fetch('/api/announcements')
         ]);
         
         if (locRes.ok) {
@@ -55,6 +57,10 @@ export default function UserHome() {
         if (shiftRes.ok) {
           const data = await shiftRes.json();
           setShifts(data);
+        }
+        if (annRes.ok) {
+          const data = await annRes.json();
+          setAnnouncements(data.filter((a: any) => a.isActive));
         }
         if (attRes.ok) {
           const data = await attRes.json();
@@ -413,107 +419,118 @@ export default function UserHome() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md bg-slate-900 border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.15)]">
-        <CardHeader>
-          <CardTitle className="text-teal-400 text-2xl font-bold flex items-center gap-2">
-            <Camera className="w-6 h-6" />
-            {hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
-          </CardTitle>
-          {user && (
-            <div className="text-slate-300 text-sm mt-2 space-y-1">
-              <p><strong>Nama:</strong> {user.name}</p>
-              <p><strong>NIP:</strong> {user.nip}</p>
-              <p><strong>Kantor 1:</strong> {user.office}</p>
-              {user.office2 && <p><strong>Kantor 2:</strong> {user.office2}</p>}
-            </div>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {leaveType ? (
-            <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
-              <CheckCircle2 className="w-4 h-4 text-teal-500" />
-              <AlertDescription className="text-lg font-medium text-center py-4">
-                {leaveType === 'sakit' && "Semoga lekas sembuh dan diberikan kesehatan seperti sediakala. Aamiin"}
-                {leaveType === 'izin' && "Semoga segala urusannya dimudahkan"}
-                {leaveType === 'Cuti' && "Semoga hari - hari cuti anda bermanfaat"}
-              </AlertDescription>
-            </Alert>
-          ) : hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
-            <Alert className="bg-teal-950/50 border-teal-900 text-teal-400 flex flex-col items-center justify-center py-6">
-              <CheckCircle2 className="w-8 h-8 text-teal-500 mb-2" />
-              <AlertDescription className="text-center space-y-4">
-                <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
-                <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
-                <div className="mt-4">
-                  <p className="text-sm text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
-                  <p className="text-5xl font-mono font-bold text-white tracking-wider">{countdown}</p>
-                </div>
-              </AlertDescription>
-            </Alert>
-          ) : hasCheckedOut ? (
-            <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
-              <CheckCircle2 className="w-4 h-4 text-teal-500" />
-              <AlertDescription>
-                Anda telah menyelesaikan absensi untuk hari ini.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <div className="relative overflow-hidden rounded-xl border-2 border-teal-500/20">
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  className="w-full aspect-video object-cover"
-                  disablePictureInPicture={false}
-                  forceScreenshotSourceSize={false}
-                  imageSmoothing={true}
-                  mirrored={false}
-                  onUserMedia={() => {}}
-                  onUserMediaError={() => {}}
-                  screenshotQuality={0.5}
-                />
-                <div className="absolute inset-0 border-2 border-teal-500/50 pointer-events-none" />
+      <div className="w-full max-w-md space-y-4">
+        {announcements.length > 0 && (
+          <div className="space-y-2">
+            {announcements.map((ann) => (
+              <Alert key={ann.id} className="bg-blue-950/50 border-blue-900 text-blue-200">
+                <AlertDescription>{ann.content}</AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        )}
+        <Card className="w-full max-w-md bg-slate-900 border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.15)]">
+          <CardHeader>
+            <CardTitle className="text-teal-400 text-2xl font-bold flex items-center gap-2">
+              <Camera className="w-6 h-6" />
+              {hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
+            </CardTitle>
+            {user && (
+              <div className="text-slate-300 text-sm mt-2 space-y-1">
+                <p><strong>Nama:</strong> {user.name}</p>
+                <p><strong>NIP:</strong> {user.nip}</p>
+                <p><strong>Kantor 1:</strong> {user.office}</p>
+                {user.office2 && <p><strong>Kantor 2:</strong> {user.office2}</p>}
               </div>
-
-              {error && (
-                <Alert variant="destructive" className="bg-red-950/50 border-red-900">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="flex flex-col gap-2 text-slate-400 text-sm">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
-                  <span className="flex-1">{isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={fetchLocation} 
-                    disabled={isLocating && !canRefresh}
-                    className="h-8 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 shrink-0"
-                  >
-                    {isLocating && !canRefresh ? 'Mencari...' : 'Refresh'}
-                  </Button>
-                </div>
-                {location && (
-                  <div className="pl-6 text-xs">
-                    Akurasi: {location.accuracy.toFixed(1)} meter | Status: Aktif
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {leaveType ? (
+              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
+                <CheckCircle2 className="w-4 h-4 text-teal-500" />
+                <AlertDescription className="text-lg font-medium text-center py-4">
+                  {leaveType === 'sakit' && "Semoga lekas sembuh dan diberikan kesehatan seperti sediakala. Aamiin"}
+                  {leaveType === 'izin' && "Semoga segala urusannya dimudahkan"}
+                  {leaveType === 'Cuti' && "Semoga hari - hari cuti anda bermanfaat"}
+                </AlertDescription>
+              </Alert>
+            ) : hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
+              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400 flex flex-col items-center justify-center py-6">
+                <CheckCircle2 className="w-8 h-8 text-teal-500 mb-2" />
+                <AlertDescription className="text-center space-y-4">
+                  <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
+                  <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
+                  <div className="mt-4">
+                    <p className="text-sm text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
+                    <p className="text-5xl font-mono font-bold text-white tracking-wider">{countdown}</p>
                   </div>
-                )}
-              </div>
+                </AlertDescription>
+              </Alert>
+            ) : hasCheckedOut ? (
+              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
+                <CheckCircle2 className="w-4 h-4 text-teal-500" />
+                <AlertDescription>
+                  Anda telah menyelesaikan absensi untuk hari ini.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <div className="relative overflow-hidden rounded-xl border-2 border-teal-500/20">
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    className="w-full aspect-video object-cover"
+                    disablePictureInPicture={false}
+                    forceScreenshotSourceSize={false}
+                    imageSmoothing={true}
+                    mirrored={false}
+                    onUserMedia={() => {}}
+                    onUserMediaError={() => {}}
+                    screenshotQuality={0.5}
+                  />
+                  <div className="absolute inset-0 border-2 border-teal-500/50 pointer-events-none" />
+                </div>
 
-              <Button
-                onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/leave'}
-                disabled={!location || isAbsenting}
-                className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
-              >
-                {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (hasCheckedIn ? 'Absen Pulang' : 'Absen Masuk')}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                {error && (
+                  <Alert variant="destructive" className="bg-red-950/50 border-red-900">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex flex-col gap-2 text-slate-400 text-sm">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
+                    <span className="flex-1">{isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchLocation} 
+                      disabled={isLocating && !canRefresh}
+                      className="h-8 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 shrink-0"
+                    >
+                      {isLocating && !canRefresh ? 'Mencari...' : 'Refresh'}
+                    </Button>
+                  </div>
+                  {location && (
+                    <div className="pl-6 text-xs">
+                      Akurasi: {location.accuracy.toFixed(1)} meter | Status: Aktif
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/leave'}
+                  disabled={!location || isAbsenting}
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
+                >
+                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (hasCheckedIn ? 'Absen Pulang' : 'Absen Masuk')}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
