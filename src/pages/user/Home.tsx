@@ -192,7 +192,12 @@ export default function UserHome() {
                 const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLat},${userLng}&key=${googleMapsApiKey}`);
                 const data = await response.json();
                 if (data.results && data.results.length > 0) {
-                  const result = data.results[0];
+                  // Find a result that explicitly contains administrative_area_level_4 (desa/kelurahan)
+                  const villageResult = data.results.find((r: any) => 
+                    r.address_components.some((c: any) => c.types.includes('administrative_area_level_4'))
+                  ) || data.results[0];
+                  
+                  const result = villageResult;
                   fullAddressLower = result.formatted_address.toLowerCase();
                   
                   const components = result.address_components;

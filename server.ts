@@ -50,30 +50,43 @@ async function startServer() {
   const CACHE_DURATION = 60 * 1000; // 1 minute cache
   if (process.env.SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     try {
+      const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+      console.log('Attempting to connect to Google Sheets...');
       const serviceAccountAuth = new JWT({
         email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        key: privateKey,
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
       doc = new GoogleSpreadsheet(process.env.SPREADSHEET_ID, serviceAccountAuth);
       await doc.loadInfo();
       isDocLoaded = true;
-      console.log('Google Spreadsheet connected:', doc.title);
+      console.log('Google Spreadsheet connected successfully:', doc.title);
     } catch (error) {
       console.error('Failed to connect to Google Spreadsheet:', error);
+      doc = null;
     }
+  } else {
+    console.warn('Google Sheets environment variables are missing.');
   }
 
   // Helper to get or create sheet
   async function getSheet(title: string) {
-    if (!doc) return null;
+    if (!doc) {
+      console.error(`Cannot get sheet '${title}': Spreadsheet not connected.`);
+      return null;
+    }
     try {
       // Ensure doc is loaded
       if (!isDocLoaded) {
         await doc.loadInfo();
         isDocLoaded = true;
       }
-      return doc.sheetsByTitle[title] || null;
+      const sheet = doc.sheetsByTitle[title];
+      if (!sheet) {
+        console.error(`Sheet '${title}' not found in spreadsheet.`);
+        return null;
+      }
+      return sheet;
     } catch (error) {
       console.error(`Error getting sheet ${title}:`, error);
       return null;
