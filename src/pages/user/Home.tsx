@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function UserHome() {
+  const navigate = useNavigate();
   const webcamRef = useRef<Webcam>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [locations, setLocations] = useState<{ id: string; desa: string; kecamatan: string; kabupaten: string; coordinates: string; radius: number }[]>([]);
@@ -29,6 +31,9 @@ export default function UserHome() {
   const [leaveType, setLeaveType] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<string>('');
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [nextShift, setNextShift] = useState<any>(null);
+  const [checkInCountdown, setCheckInCountdown] = useState<string>('');
+  const [canCheckIn, setCanCheckIn] = useState(true);
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -97,20 +102,37 @@ export default function UserHome() {
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
-          const [inHour, inMin] = checkInTime.split(':').map(Number);
-          const checkInMinutes = inHour * 60 + inMin;
-          let minDiff = Infinity;
-
-          activeShifts.forEach(shift => {
-            const [startHour, startMin] = shift.startTime.split(':').map(Number);
-            const startMinutes = startHour * 60 + startMin;
-            let diff = Math.abs(checkInMinutes - startMinutes);
-            if (diff > 720) diff = 1440 - diff;
-            if (diff < minDiff) {
-              minDiff = diff;
-              targetShift = shift;
+          let inHour = 0;
+          let inMin = 0;
+          const timeMatch = checkInTime.match(/(\d+)[.:](\d+)/);
+          
+          if (timeMatch) {
+            inHour = parseInt(timeMatch[1], 10);
+            inMin = parseInt(timeMatch[2], 10);
+            
+            const lowerTime = checkInTime.toLowerCase();
+            if (lowerTime.includes('pm') && inHour < 12) {
+              inHour += 12;
+            } else if (lowerTime.includes('am') && inHour === 12) {
+              inHour = 0;
             }
-          });
+          }
+          
+          if (!isNaN(inHour) && !isNaN(inMin)) {
+            const checkInMinutes = inHour * 60 + inMin;
+            let minDiff = Infinity;
+
+            activeShifts.forEach(shift => {
+              const [startHour, startMin] = shift.startTime.split(':').map(Number);
+              const startMinutes = startHour * 60 + startMin;
+              let diff = Math.abs(checkInMinutes - startMinutes);
+              if (diff > 720) diff = 1440 - diff;
+              if (diff < minDiff) {
+                minDiff = diff;
+                targetShift = shift;
+              }
+            });
+          }
         }
 
         if (targetShift) {
@@ -152,26 +174,112 @@ export default function UserHome() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
+    // Timer untuk Absen Masuk (jika belum absen masuk)
+    if (!hasCheckedIn && shifts.length > 0) {
+      const isCountdownEnabled = settings?.absensiSettings?.enableCountdown !== false;
+      
+      const activeShifts = shifts.filter(s => s.isActive);
+      const calculateCheckInCountdown = () => {
+        if (!isCountdownEnabled) {
+          setCanCheckIn(true);
+          setCheckInCountdown('');
+          return;
+        }
+
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        let upcomingShift = null;
+        let minTimeDiff = Infinity;
+        let upcomingShiftStart = new Date();
+
+        activeShifts.forEach(shift => {
+          const [startHour, startMin] = shift.startTime.split(':').map(Number);
+          const startMinutes = startHour * 60 + startMin;
+          
+          let shiftStart = new Date();
+          shiftStart.setHours(startHour, startMin, 0, 0);
+
+          // Jika jam shift lebih kecil dari jam sekarang, asumsikan itu untuk shift yang akan datang (mungkin besok)
+          // Kecuali jika selisihnya dekat (pagi ke pagi)
+          let diff = startMinutes - currentMinutes;
+          
+          // Memperhitungkan pergantian hari / shift selanjutnya
+          if (diff < -120) { 
+             // asumsikan sudah lewat 2 jam, maka shift ini untuk besok
+             diff += 1440;
+             shiftStart.setDate(shiftStart.getDate() + 1);
+          }
+
+          if (diff >= -120 && diff < minTimeDiff) {
+             minTimeDiff = diff;
+             upcomingShift = shift;
+             upcomingShiftStart = shiftStart;
+          }
+        });
+
+        if (upcomingShift) {
+          setNextShift(upcomingShift);
+          
+          // Izinkan absen masuk mulai 60 menit sebelum shift dimulai
+          const minCheckIn = new Date(upcomingShiftStart.getTime() - 60 * 60000); 
+          const diffMs = minCheckIn.getTime() - now.getTime();
+
+          if (diffMs > 0) {
+            setCanCheckIn(false);
+            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+            setCheckInCountdown(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+          } else {
+            setCanCheckIn(true);
+            setCheckInCountdown('');
+          }
+        }
+      };
+
+      calculateCheckInCountdown();
+      interval = setInterval(calculateCheckInCountdown, 1000);
+    }
+    
+    // Timer untuk Absen Pulang (jika sudah absen masuk)
     if (hasCheckedIn && !hasCheckedOut && shiftEndTime) {
       const calculateCountdown = () => {
         const activeShifts = shifts.filter(s => s.isActive);
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
-          const [inHour, inMin] = checkInTime.split(':').map(Number);
-          const checkInMinutes = inHour * 60 + inMin;
-          let minDiff = Infinity;
-
-          activeShifts.forEach(shift => {
-            const [startHour, startMin] = shift.startTime.split(':').map(Number);
-            const startMinutes = startHour * 60 + startMin;
-            let diff = Math.abs(checkInMinutes - startMinutes);
-            if (diff > 720) diff = 1440 - diff;
-            if (diff < minDiff) {
-              minDiff = diff;
-              targetShift = shift;
+          let inHour = 0;
+          let inMin = 0;
+          const timeMatch = checkInTime.match(/(\d+)[.:](\d+)/);
+          
+          if (timeMatch) {
+            inHour = parseInt(timeMatch[1], 10);
+            inMin = parseInt(timeMatch[2], 10);
+            
+            const lowerTime = checkInTime.toLowerCase();
+            if (lowerTime.includes('pm') && inHour < 12) {
+              inHour += 12;
+            } else if (lowerTime.includes('am') && inHour === 12) {
+              inHour = 0;
             }
-          });
+          }
+          
+          if (!isNaN(inHour) && !isNaN(inMin)) {
+            const checkInMinutes = inHour * 60 + inMin;
+            let minDiff = Infinity;
+
+            activeShifts.forEach(shift => {
+              const [startHour, startMin] = shift.startTime.split(':').map(Number);
+              const startMinutes = startHour * 60 + startMin;
+              let diff = Math.abs(checkInMinutes - startMinutes);
+              if (diff > 720) diff = 1440 - diff;
+              if (diff < minDiff) {
+                minDiff = diff;
+                targetShift = shift;
+              }
+            });
+          }
         }
         
         if (!targetShift) return;
@@ -206,7 +314,7 @@ export default function UserHome() {
     }
     
     return () => clearInterval(interval);
-  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime]);
+  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime, settings]);
 
   const fetchLocation = () => {
     setIsLocating(true);
@@ -596,6 +704,16 @@ export default function UserHome() {
                   </Alert>
                 )}
 
+                {!hasCheckedIn && checkInCountdown && !canCheckIn && (
+                  <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
+                    <AlertDescription className="text-center">
+                      <p className="mb-2">Shift berikutnya: <strong>{nextShift?.name} ({nextShift?.startTime})</strong></p>
+                      <p className="text-xs mb-1">Waktu menuju pembukaan absen masuk:</p>
+                      <p className="text-3xl font-mono font-bold tracking-wider">{checkInCountdown}</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="flex flex-col gap-2 text-slate-400 text-sm">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
@@ -618,11 +736,11 @@ export default function UserHome() {
                 </div>
 
                 <Button
-                  onClick={() => isWithinRange ? handleAbsen() : window.location.href = '/user/leave'}
-                  disabled={!location || isAbsenting}
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all"
+                  onClick={() => isWithinRange ? handleAbsen() : navigate('/user/leave')}
+                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange)}
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (hasCheckedIn ? 'Absen Pulang' : 'Absen Masuk')}
+                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
               </>
             )}

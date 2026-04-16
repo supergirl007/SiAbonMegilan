@@ -37,27 +37,69 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [empRes, attRes, setRes] = await Promise.all([
+        const [empRes, attRes, setRes, shiftRes] = await Promise.all([
           fetch('/api/employees'),
           fetch('/api/attendance'),
-          fetch('/api/settings')
+          fetch('/api/settings'),
+          fetch('/api/shifts')
         ]);
         
         const employees = empRes.ok ? await empRes.json() : [];
         const attendance = attRes.ok ? await attRes.json() : [];
+        const shifts = shiftRes.ok ? await shiftRes.json() : [];
+        let absensiSettings = { tolerance: "15" };
         
         if (setRes.ok) {
           const data = await setRes.json();
           if (data.generalSettings?.appName) setAppName(data.generalSettings.appName);
           if (data.generalSettings?.companyName) setCompanyName(data.generalSettings.companyName);
+          if (data.absensiSettings) absensiSettings = data.absensiSettings;
         }
+
+        const parseTime = (timeStr: string) => {
+          if (!timeStr) return 0;
+          let clean = timeStr.replace(/\./g, ':').trim().toUpperCase();
+          let isPM = clean.includes('PM');
+          let isAM = clean.includes('AM');
+          clean = clean.replace(/[A-Z]/g, '').trim();
+          const parts = clean.split(':');
+          let h = parseInt(parts[0] || '0', 10);
+          let m = parseInt(parts[1] || '0', 10);
+          if (isPM && h !== 12) h += 12;
+          if (isAM && h === 12) h = 0;
+          return h * 60 + m;
+        };
+
+        const getShiftForTime = (timeMinutes: number) => {
+          if (!shifts || shifts.length === 0) return { start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
+          const activeShifts = shifts.filter((s: any) => s.isActive);
+          let bestShift = activeShifts[0] || shifts[0];
+          let minDiff = Infinity;
+          activeShifts.forEach((shift: any) => {
+            const startMinutes = parseTime(shift.startTime);
+            let diff = Math.abs(timeMinutes - startMinutes);
+            if (diff > 720) diff = 1440 - diff;
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestShift = shift;
+            }
+          });
+          return {
+            start: parseTime(bestShift.startTime),
+            end: parseTime(bestShift.endTime),
+            tolerance: parseInt(absensiSettings.tolerance || '15')
+          };
+        };
 
         const today = format(new Date(), 'yyyy-MM-dd');
         const todayAttendance = attendance.filter((a: any) => a.date === today);
         const presentToday = todayAttendance.filter((a: any) => a.type === 'in');
         
-        // Simple logic for late: if time > 08:00
-        const lateToday = presentToday.filter((a: any) => a.time > '08:00');
+        const lateToday = presentToday.filter((a: any) => {
+          const t = parseTime(a.time);
+          const shift = getShiftForTime(t);
+          return t > shift.start + shift.tolerance;
+        });
         
         setStats([
           { title: "Total Karyawan", value: employees.length.toString(), icon: Users, color: "text-blue-600", bg: "bg-blue-100" },

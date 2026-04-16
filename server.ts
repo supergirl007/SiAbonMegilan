@@ -302,7 +302,8 @@ async function startServer() {
 
   // --- Auth API ---
   app.post('/api/login', async (req, res) => {
-    const { nip, password } = req.body;
+    const nip = (req.body.nip || '').trim();
+    const password = (req.body.password || '').trim();
     console.log(`Login attempt for NIP: ${nip}`);
     
     let user = null;
@@ -312,7 +313,7 @@ async function startServer() {
         const adminSheet = await getSheet('Admins');
         if (adminSheet) {
           const rows = await adminSheet.getRows();
-          const row = rows.find(r => r.get('nip') === nip && r.get('password') === password && r.get('isActive') === 'true');
+          const row = rows.find(r => (r.get('nip') || '').trim() === nip && (r.get('password') || '').trim() === password && r.get('isActive') === 'true');
           if (row) {
             let access = [];
             try {
@@ -320,7 +321,7 @@ async function startServer() {
             } catch (e) {}
             user = { 
               id: row.get('id'), 
-              nip: row.get('nip'), 
+              nip: (row.get('nip') || '').trim(), 
               name: row.get('name'), 
               role: 'admin',
               group: row.get('group'),
@@ -335,9 +336,9 @@ async function startServer() {
           const userSheet = await getSheet('Users');
           if (userSheet) {
             const rows = await userSheet.getRows();
-            const row = rows.find(r => r.get('nip') === nip && r.get('password') === password);
+            const row = rows.find(r => (r.get('nip') || '').trim() === nip && (r.get('password') || '').trim() === password);
             if (row) {
-              user = { id: row.get('id'), nip: row.get('nip'), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
+              user = { id: row.get('id'), nip: (row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
               console.log('User found:', user.name);
             }
           }

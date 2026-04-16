@@ -25,25 +25,30 @@ export default function AdminAttendance() {
   const puskesmasName = generalSettings.companyName || "Puskesmas Sehat";
   const pimpinanName = generalSettings.pimpinanName || "Dr. Budi Santoso";
 
+  const [absensiSettings, setAbsensiSettings] = useState<any>({});
+  const [shifts, setShifts] = useState<any[]>([]);
+
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/settings');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.generalSettings) {
-            setGeneralSettings(data.generalSettings);
-          }
+        const [setRes, shiftRes] = await Promise.all([
+          fetch('/api/settings'),
+          fetch('/api/shifts')
+        ]);
+        if (setRes.ok) {
+          const data = await setRes.json();
+          if (data.generalSettings) setGeneralSettings(data.generalSettings);
+          if (data.absensiSettings) setAbsensiSettings(data.absensiSettings);
+        }
+        if (shiftRes.ok) {
+          const shiftData = await shiftRes.json();
+          setShifts(shiftData);
         }
       } catch (error) {
-        console.error('Failed to fetch settings:', error);
-        const savedGeneral = localStorage.getItem('generalSettings');
-        if (savedGeneral) {
-          setGeneralSettings(JSON.parse(savedGeneral));
-        }
+        console.error('Failed to fetch:', error);
       }
     };
-    fetchSettings();
+    fetchData();
   }, []);
 
   // State for Absensi Bulanan
@@ -166,6 +171,48 @@ export default function AdminAttendance() {
     setFilteredAttendance(attendanceData);
   }, [attendanceData]);
 
+  const parseTime = (timeStr: string) => {
+    if (!timeStr) return 0;
+    let clean = timeStr.replace(/\./g, ':').trim().toUpperCase();
+    let isPM = clean.includes('PM');
+    let isAM = clean.includes('AM');
+    clean = clean.replace(/[A-Z]/g, '').trim();
+    const parts = clean.split(':');
+    let h = parseInt(parts[0] || '0', 10);
+    let m = parseInt(parts[1] || '0', 10);
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    return h * 60 + m;
+  };
+
+  const getShiftForTime = (timeMinutes: number) => {
+    if (!shifts || shifts.length === 0) return { start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
+    
+    const activeShifts = shifts.filter(s => s.isActive);
+    let bestShift = activeShifts[0] || shifts[0];
+    let minDiff = Infinity;
+    
+    // Evaluate closest shift start time
+    activeShifts.forEach(shift => {
+      const startMinutes = parseTime(shift.startTime);
+      let diff = Math.abs(timeMinutes - startMinutes);
+      // handling wrapping across midnight: e.g. time is 01:00 AM, shift is 20:00. Difference is 5 hours.
+      // 01:00 is 60. 20:00 is 1200. diff is 1140. Or 1440 - 1140 = 300.
+      if (diff > 720) diff = 1440 - diff;
+      
+      if (diff < minDiff) {
+        minDiff = diff;
+        bestShift = shift;
+      }
+    });
+
+    return {
+      start: parseTime(bestShift.startTime),
+      end: parseTime(bestShift.endTime),
+      tolerance: parseInt(absensiSettings.tolerance || '15')
+    };
+  };
+
   const {
     trenData,
     performaUnitData,
@@ -177,10 +224,25 @@ export default function AdminAttendance() {
   } = useMemo(() => {
     const trenData = dates.map(date => {
       const dayAtt = filteredAttendance.filter(a => a.date === date);
+      let hadir = 0;
+      let terlambat = 0;
+      
+      dayAtt.forEach(a => {
+        if (a.type === 'in') {
+          const t = parseTime(a.time);
+          const shift = getShiftForTime(t);
+          if (t <= shift.start + shift.tolerance) {
+            hadir++;
+          } else {
+            terlambat++;
+          }
+        }
+      });
+      
       return {
         date: new Date(date).getDate().toString(),
-        hadir: dayAtt.filter(a => a.type === 'in' && a.time <= '08:00').length,
-        terlambat: dayAtt.filter(a => a.type === 'in' && a.time > '08:00').length
+        hadir,
+        terlambat
       };
     });
 
@@ -227,17 +289,23 @@ export default function AdminAttendance() {
 
     // Analisa Keterlambatan
     const analisaKeterlambatanData = weeks.map(week => {
-      const weekAtt = filteredAttendance.filter(a => week.dates.includes(a.date) && a.type === 'in' && a.time > '08:00');
-      
       let m0_15 = 0, m16_30 = 0, m30_60 = 0, m60plus = 0;
-      
-      weekAtt.forEach(a => {
-        const [h, m] = a.time.split(':').map(Number);
-        const lateMinutes = (h * 60 + m) - (8 * 60);
-        if (lateMinutes <= 15) m0_15++;
-        else if (lateMinutes <= 30) m16_30++;
-        else if (lateMinutes <= 60) m30_60++;
-        else m60plus++;
+
+      filteredAttendance.forEach(a => {
+        if (week.dates.includes(a.date) && a.type === 'in') {
+          const t = parseTime(a.time);
+          const shift = getShiftForTime(t);
+          
+          if (t > shift.start + shift.tolerance) {
+            let lateMinutes = t - shift.start;
+            if (lateMinutes < 0) lateMinutes += 1440; // handled midnight cross
+            
+            if (lateMinutes <= 15) m0_15++;
+            else if (lateMinutes <= 30) m16_30++;
+            else if (lateMinutes <= 60) m30_60++;
+            else m60plus++;
+          }
+        }
       });
 
       return {
@@ -260,15 +328,23 @@ export default function AdminAttendance() {
     filteredAttendance.forEach(a => {
       if (!empStats[a.nip]) return;
       
+      const t = parseTime(a.time);
+      const shift = getShiftForTime(t);
+
       if (a.type === 'in') {
-        const [h, m] = a.time.split(':').map(Number);
-        empStats[a.nip].inTimes.push(h * 60 + m);
-        if (h * 60 + m > 8 * 60) {
+        empStats[a.nip].inTimes.push(t - shift.start); // store difference for early birds
+        if (t > shift.start + shift.tolerance) {
           empStats[a.nip].lateCount++;
         }
       } else if (a.type === 'out') {
-        const [h, m] = a.time.split(':').map(Number);
-        if (h * 60 + m < 16 * 60) { // Assuming 16:00 is out time
+        // Here we could be checking if t < shift.end
+        // But let's handle wrap around logic simply:
+        let endT = shift.end;
+        if (endT < shift.start) endT += 1440;
+        let myT = t;
+        if (myT < shift.start) myT += 1440;
+        
+        if (myT < endT) { 
           empStats[a.nip].earlyOutCount++;
         }
       }
@@ -277,12 +353,12 @@ export default function AdminAttendance() {
     const earlyBirds = Object.values(empStats)
       .filter(e => e.inTimes.length > 0)
       .map(e => {
-        const avgMinutes = e.inTimes.reduce((sum, val) => sum + val, 0) / e.inTimes.length;
-        const h = Math.floor(avgMinutes / 60).toString().padStart(2, '0');
-        const m = Math.floor(avgMinutes % 60).toString().padStart(2, '0');
-        return { ...e, avgMinutes, time: `${h}:${m}` };
+        // Average difference from shift start. Negative = early.
+        const avgDifference = e.inTimes.reduce((sum, val) => sum + val, 0) / e.inTimes.length;
+        // if avgDifference is negative, then say "H-10m" maybe? But let's just sort by most negative.
+        return { ...e, avgDifference, time: avgDifference <= 0 ? `-${Math.abs(Math.floor(avgDifference))}m` : `+${Math.floor(avgDifference)}m` };
       })
-      .sort((a, b) => a.avgMinutes - b.avgMinutes)
+      .sort((a, b) => a.avgDifference - b.avgDifference)
       .slice(0, 5);
 
     const frequentLate = Object.values(empStats)

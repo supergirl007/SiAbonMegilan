@@ -32,7 +32,8 @@ export default function AdminSettings() {
 
   // State for Absensi Settings
   const [absensiSettings, setAbsensiSettings] = useState({
-    tolerance: "15"
+    tolerance: "15",
+    enableCountdown: true
   });
   const [isSavingAbsensi, setIsSavingAbsensi] = useState(false);
 
@@ -282,6 +283,17 @@ export default function AdminSettings() {
                 <Label htmlFor="tolerance">Toleransi Keterlambatan (Menit)</Label>
                 <Input id="tolerance" type="number" value={absensiSettings.tolerance} onChange={handleAbsensiChange} />
               </div>
+              <div className="flex items-center space-x-2 mt-4">
+                <input
+                  type="checkbox"
+                  id="enableCountdown"
+                  checked={absensiSettings.enableCountdown}
+                  onChange={(e) => setAbsensiSettings(prev => ({ ...prev, enableCountdown: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="enableCountdown">Aktifkan Hitung Mundur Absensi Masuk</Label>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">Jika dinonaktifkan, karyawan bebas melakukan absensi jam berapapun.</p>
               <Button className="mt-4" onClick={handleSaveAbsensi} disabled={isSavingAbsensi}>
                 {isSavingAbsensi ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
