@@ -29,14 +29,14 @@ async function startServer() {
     ],
     attendance: [],
     locations: [
-      { id: 1, name: 'Kantor Induk', lat: -7.000517, lng: 112.391503, radius: 500 },
+      { id: 1, name: 'Kantor Induk', lat: -7.250445, lng: 112.768845, radius: 300 },
     ],
     settings: {
       appName: 'Si Abon Megilan',
-      companyName: 'Puskesmas Kalitengah',
-      headName: 'dr. Sesanti',
-      address: 'Jl. Mahkota No 100 Desa Dibee Kec. Kalitengah Kab. Lamongan',
-      mainLocation: '-7.000517, 112.391503',
+      companyName: 'Puskesmas Sehat',
+      headName: 'Dr. Budi Santoso',
+      address: 'Jl. Kesehatan No. 1, Kota Sehat',
+      mainLocation: '-7.250445, 112.768845',
       tolerance: 15,
     }
   };
@@ -750,7 +750,7 @@ async function startServer() {
             kecamatan: row.get('kecamatan') || '',
             kabupaten: row.get('kabupaten') || '',
             coordinates: row.get('coordinates'),
-            radius: row.get('radius') || 500
+            radius: row.get('radius') || 100
           }));
           cache['locations'] = { data: locations, timestamp: Date.now() };
           return res.json(locations);
@@ -760,8 +760,8 @@ async function startServer() {
       }
     }
     res.json([
-      { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 500 },
-      { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 500 }
+      { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 100 },
+      { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 100 }
     ]);
   });
 
@@ -778,7 +778,7 @@ async function startServer() {
             kecamatan: location.kecamatan || '',
             kabupaten: location.kabupaten || '',
             coordinates: location.coordinates || '',
-            radius: location.radius || 500
+            radius: location.radius || 100
           });
           delete cache['locations'];
         }
