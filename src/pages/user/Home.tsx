@@ -363,18 +363,16 @@ export default function UserHome() {
                   const components = result.address_components;
                   const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
                   
-                  const village = getComponent('administrative_area_level_4') || getComponent('locality');
+                  const village = getComponent('administrative_area_level_4') || getComponent('locality') || getComponent('sublocality');
                   const district = getComponent('administrative_area_level_3');
                   const regency = getComponent('administrative_area_level_2');
                   const state = getComponent('administrative_area_level_1');
-                  const country = getComponent('country');
-                  
+
                   const parts = [];
-                  if (village) parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kelurahan') ? village : `Desa ${village}`);
-                  if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+                  if (village) parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kel') ? village : `Desa ${village}`);
+                  if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kecamatan ${district}`);
                   if (regency) parts.push(regency);
                   if (state) parts.push(state);
-                  if (country) parts.push(country);
                   
                   detectedAddress = parts.length > 0 ? parts.join(', ') : result.formatted_address;
                   googleMapsSuccess = true;
@@ -397,22 +395,24 @@ export default function UserHome() {
                 
                 if (data.address) {
                   const parts = [];
-                  if (data.address.village) parts.push(`Desa ${data.address.village}`);
-                  else if (data.address.town) parts.push(data.address.town);
-                  else if (data.address.city) parts.push(data.address.city);
-                  
-                  const district = data.address.district || data.address.suburb;
-                  if (district) {
-                    parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+                  // Remove road data to focus on regional area
+                  const village = data.address.village || data.address.hamlet || data.address.suburb || data.address.town;
+                  const district = data.address.district || data.address.city_district;
+                  const regency = data.address.county || data.address.city || data.address.region;
+                  const state = data.address.state;
+
+                  if (village) {
+                    parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kel') ? village : `Desa ${village}`);
                   }
-                  
-                  const regency = data.address.county || data.address.city_district;
+                  if (district) {
+                    parts.push(district.toLowerCase().startsWith('kec') ? district : `Kecamatan ${district}`);
+                  }
                   if (regency) {
                     parts.push(regency.toLowerCase().startsWith('kab') || regency.toLowerCase().startsWith('kota') ? regency : `Kabupaten ${regency}`);
                   }
-                  
-                  if (data.address.state) parts.push(data.address.state);
-                  if (data.address.country) parts.push(data.address.country);
+                  if (state) {
+                    parts.push(state);
+                  }
                   
                   if (parts.length > 0) {
                     detectedAddress = parts.join(', ');

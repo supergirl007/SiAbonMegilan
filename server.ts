@@ -215,7 +215,7 @@ async function startServer() {
             email: row.get('email'),
             phone: row.get('phone'),
             group: row.get('group'),
-            isActive: row.get('isActive') === 'true',
+            isActive: String(row.get('isActive')).toLowerCase() === 'true',
             access: row.get('access') ? JSON.parse(row.get('access')) : [],
             password: row.get('password')
           }));
@@ -313,7 +313,7 @@ async function startServer() {
         const adminSheet = await getSheet('Admins');
         if (adminSheet) {
           const rows = await adminSheet.getRows();
-          const row = rows.find(r => (r.get('nip') || '').trim() === nip && (r.get('password') || '').trim() === password && r.get('isActive') === 'true');
+          const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password && String(r.get('isActive')).trim().toLowerCase() === 'true');
           if (row) {
             let access = [];
             try {
@@ -321,7 +321,7 @@ async function startServer() {
             } catch (e) {}
             user = { 
               id: row.get('id'), 
-              nip: (row.get('nip') || '').trim(), 
+              nip: String(row.get('nip') || '').trim(), 
               name: row.get('name'), 
               role: 'admin',
               group: row.get('group'),
@@ -336,9 +336,9 @@ async function startServer() {
           const userSheet = await getSheet('Users');
           if (userSheet) {
             const rows = await userSheet.getRows();
-            const row = rows.find(r => (r.get('nip') || '').trim() === nip && (r.get('password') || '').trim() === password);
+            const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password);
             if (row) {
-              user = { id: row.get('id'), nip: (row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
+              user = { id: row.get('id'), nip: String(row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
               console.log('User found:', user.name);
             }
           }
@@ -373,7 +373,7 @@ async function startServer() {
         const empSheet = await getSheet('Employees');
         if (empSheet) {
           const rows = await empSheet.getRows();
-          isValidEmployee = rows.some(r => r.get('nip') === nip);
+          isValidEmployee = rows.some(r => String(r.get('nip')) === String(nip));
         }
       } catch (error) {
         console.error('Error validating employee NIP:', error);
@@ -395,7 +395,7 @@ async function startServer() {
         const userSheet = await getOrCreateSheet('Users', ['id', 'nip', 'name', 'email', 'role', 'password', 'gender', 'cluster', 'unit', 'office', 'office2']);
         if (userSheet) {
           const rows = await userSheet.getRows();
-          userExists = rows.some(r => r.get('nip') === nip);
+          userExists = rows.some(r => String(r.get('nip')) === String(nip));
         }
       } catch (error) {
         console.error('Error checking existing user:', error);
@@ -821,8 +821,8 @@ async function startServer() {
             name: row.get('name'),
             startTime: row.get('startTime'),
             endTime: row.get('endTime'),
-            crossesMidnight: row.get('crossesMidnight') === 'true',
-            isActive: row.get('isActive') === 'true'
+            crossesMidnight: String(row.get('crossesMidnight')).toLowerCase() === 'true',
+            isActive: String(row.get('isActive')).toLowerCase() === 'true'
           }));
           return res.json(shifts);
         }
@@ -913,7 +913,7 @@ async function startServer() {
             content: row.get('content'),
             date: row.get('date'),
             expiryDate: row.get('expiryDate'),
-            isActive: row.get('isActive') === 'true'
+            isActive: String(row.get('isActive')).toLowerCase() === 'true'
           }));
           return res.json(announcements);
         }
