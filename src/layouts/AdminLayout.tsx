@@ -178,16 +178,19 @@ export default function AdminLayout() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-48">
                       <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer" />}>
-                        General
+                        Umum
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer" />}>
                         Absensi
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer" />}>
-                        Leave & Time off
+                        Izin & Cuti
+                      </DropdownMenuItem>
+                      <DropdownMenuItem render={<Link to="/admin/settings?tab=lokasi" className="w-full cursor-pointer" />}>
+                        Lokasi
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer" />}>
-                        Data Management
+                        Manajemen Data
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -243,10 +246,11 @@ export default function AdminLayout() {
                     {hasAccess('Sistem') && (
                       <DropdownMenuGroup>
                         <DropdownMenuLabel>Sistem</DropdownMenuLabel>
-                        <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>General</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=general" className="w-full cursor-pointer pl-6" />}>Umum</DropdownMenuItem>
                         <DropdownMenuItem render={<Link to="/admin/settings?tab=absensi" className="w-full cursor-pointer pl-6" />}>Absensi</DropdownMenuItem>
-                        <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Leave & Time off</DropdownMenuItem>
-                        <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Data Management</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=leave" className="w-full cursor-pointer pl-6" />}>Izin & Cuti</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=lokasi" className="w-full cursor-pointer pl-6" />}>Lokasi</DropdownMenuItem>
+                        <DropdownMenuItem render={<Link to="/admin/settings?tab=data" className="w-full cursor-pointer pl-6" />}>Manajemen Data</DropdownMenuItem>
                       </DropdownMenuGroup>
                     )}
                   </DropdownMenuContent>

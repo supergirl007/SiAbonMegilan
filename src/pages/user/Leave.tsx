@@ -15,10 +15,17 @@ export default function UserLeave() {
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
   const [user, setUser] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
+    
+    // Fetch settings for autoApprove
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => setSettings(data))
+      .catch(err => console.error('Error fetching settings:', err));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,16 +42,26 @@ export default function UserLeave() {
 
     if (leaveType === 'izin') {
       type = 'izin';
-      status = 'izin';
     } else if (leaveType === 'sakit') {
       type = 'sakit';
-      status = 'izin';
     } else if (leaveType === 'cuti') {
       type = 'Cuti';
-      status = 'Cuti';
     } else if (leaveType === 'dinas_luar') {
       type = 'dinas_luar';
-      status = 'Dinas Luar';
+    }
+
+    // Check autoApprove setting
+    const autoApprove = settings?.leaveSettings?.autoApprove;
+    
+    // If autoApprove is 0 or disabled, require manual approval
+    if (!autoApprove || autoApprove === "0" || autoApprove === 0) {
+      status = 'pending';
+    } else {
+      // Auto approve immediately
+      if (type === 'izin') status = 'izin';
+      else if (type === 'sakit') status = 'izin';
+      else if (type === 'Cuti') status = 'Cuti';
+      else if (type === 'dinas_luar') status = 'Dinas Luar';
     }
 
     try {

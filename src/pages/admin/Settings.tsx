@@ -172,13 +172,6 @@ export default function AdminSettings() {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">Umum</TabsTrigger>
-          <TabsTrigger value="absensi">Absensi</TabsTrigger>
-          <TabsTrigger value="leave">Izin & Cuti</TabsTrigger>
-          <TabsTrigger value="lokasi">Lokasi</TabsTrigger>
-          <TabsTrigger value="data">Data</TabsTrigger>
-        </TabsList>
         <TabsContent value="general">
           <Card>
             <CardHeader>

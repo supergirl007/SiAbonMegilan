@@ -555,6 +555,38 @@ async function startServer() {
     res.json({ success: true, message: 'Absensi berhasil dicatat' });
   });
 
+  app.put('/api/attendance/:id', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Attendance');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToUpdate = rows.find(r => r.get('id') === id);
+          if (rowToUpdate) {
+            rowToUpdate.set('status', status);
+            await rowToUpdate.save();
+            return res.json({ success: true, message: 'Status berhasil diperbarui' });
+          } else {
+            return res.status(404).json({ success: false, message: 'Absensi tidak ditemukan' });
+          }
+        }
+      } catch (error) {
+        console.error('Error updating attendance status:', error);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan' });
+      }
+    }
+    
+    // In-memory fallback
+    const record = db.attendance.find((a: any) => a.id === id);
+    if (record) {
+      record.status = status;
+      return res.json({ success: true, message: 'Status berhasil diperbarui' });
+    }
+    return res.status(404).json({ success: false, message: 'Absensi tidak ditemukan' });
+  });
+
   app.post('/api/forgot-password', async (req, res) => {
     const { email } = req.body;
     let foundUser = null;

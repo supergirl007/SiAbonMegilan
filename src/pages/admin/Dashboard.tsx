@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Clock, UserX } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 import { format } from 'date-fns';
 
@@ -33,6 +34,21 @@ export default function AdminDashboard() {
 
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
   const [notCheckedOut, setNotCheckedOut] = useState<any[]>([]);
+
+  const handleApprove = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`/api/attendance/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        setPendingLeaves(prev => prev.filter(l => l.id !== id));
+      }
+    } catch (e) {
+      console.error('Error updating leave status', e);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -157,9 +173,20 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {pendingLeaves.length > 0 ? (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {pendingLeaves.map((leave, i) => (
-                  <li key={i} className="text-sm text-slate-700">{leave.name} - {leave.type}</li>
+                  <li key={i} className="flex justify-between items-center text-sm text-slate-700 bg-slate-50 p-2 rounded-lg border">
+                    <div>
+                      <span className="font-medium">{leave.name}</span>
+                      <span className="block text-xs text-slate-500 hover:text-slate-700 cursor-help" title={leave.location || "Tanpa alasan"}>
+                        {leave.type === "Cuti" ? "Cuti Tahunan" : leave.type === "izin" ? "Izin" : leave.type === "sakit" ? "Sakit" : leave.type} - {leave.date}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs px-2" onClick={() => handleApprove(leave.id, leave.type)}>Setujui</Button>
+                      <Button size="sm" variant="destructive" className="h-8 text-xs px-2" onClick={() => handleApprove(leave.id, 'Ditolak')}>Tolak</Button>
+                    </div>
+                  </li>
                 ))}
               </ul>
             ) : (
