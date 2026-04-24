@@ -17,6 +17,26 @@ import UserLeave from './pages/user/Leave';
 import AdminAttendance from './pages/admin/Attendance';
 import AdminEmployees from './pages/admin/Employees';
 import AdminSettings from './pages/admin/Settings';
+import { useEffect } from 'react';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const loginTime = localStorage.getItem('loginTime');
+  const user = localStorage.getItem('user');
+
+  if (!user || !loginTime) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const now = Date.now();
+  const elapsed = now - parseInt(loginTime, 10);
+  if (elapsed > 36 * 60 * 60 * 1000) {
+    localStorage.removeItem('user');
+    localStorage.removeItem('loginTime');
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
@@ -26,7 +46,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         
         {/* Admin Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route index element={<AdminDashboard />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="employees" element={<AdminEmployees />} />
@@ -34,7 +54,7 @@ export default function App() {
         </Route>
 
         {/* User Routes */}
-        <Route path="/user" element={<UserLayout />}>
+        <Route path="/user" element={<ProtectedRoute><UserLayout /></ProtectedRoute>}>
           <Route index element={<UserHome />} />
           <Route path="history" element={<UserHistory />} />
           <Route path="profile" element={<UserProfile />} />

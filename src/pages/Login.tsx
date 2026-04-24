@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +36,24 @@ export default function Login() {
   const [appName, setAppName] = useState("Si Abon Megilan");
   const [appLogo, setAppLogo] = useState("");
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // Check persist login 36 hours
+    const loginTime = localStorage.getItem('loginTime');
+    if (loginTime) {
+      const now = Date.now();
+      const elapsed = now - parseInt(loginTime, 10);
+      if (elapsed > 36 * 60 * 60 * 1000) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('loginTime');
+      } else {
+        const user = localStorage.getItem('user');
+        if (user) {
+           const userData = JSON.parse(user);
+           navigate(userData.role === 'admin' ? '/admin' : '/user');
+        }
+      }
+    }
+
     const fetchSettings = async () => {
       try {
         const response = await fetch('/api/settings');
@@ -54,7 +71,7 @@ export default function Login() {
       }
     };
     fetchSettings();
-  }, []);
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +94,7 @@ export default function Login() {
 
       if (data.success) {
         localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('loginTime', Date.now().toString());
         toast.success('Login berhasil');
         if (data.user.role === 'admin') {
           navigate('/admin');

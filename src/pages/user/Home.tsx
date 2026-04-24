@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
+import { checkAndFireAlarm } from '@/utils/alarm';
 
 import { format } from 'date-fns';
 
@@ -221,6 +222,27 @@ export default function UserHome() {
         if (upcomingShift) {
           setNextShift(upcomingShift);
           
+          // Alarm logic
+          const diffMsStart = upcomingShiftStart.getTime() - now.getTime();
+          if (diffMsStart <= 10 * 60000 && diffMsStart > 9 * 60000) {
+            checkAndFireAlarm(
+              'Pengingat Absensi', 
+              'Shift Anda akan mulai dalam 10 menit. Jangan lupa absen masuk!', 
+              'masuk_10'
+            );
+          }
+
+          if (diffMsStart <= -15 * 60000 && diffMsStart > -16 * 60000 && !hasCheckedIn) {
+            const day = now.getDay();
+            if (day >= 1 && day <= 5) {
+              checkAndFireAlarm(
+                'Peringatan Keterlambatan', 
+                'Anda belum absen masuk dan shift sudah berjalan 15 menit!', 
+                'telat_15'
+              );
+            }
+          }
+
           // Izinkan absen masuk mulai 60 menit sebelum shift dimulai
           const minCheckIn = new Date(upcomingShiftStart.getTime() - 60 * 60000); 
           const diffMs = minCheckIn.getTime() - now.getTime();
@@ -621,28 +643,28 @@ export default function UserHome() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 flex items-center justify-center transition-colors">
       <div className="w-full max-w-md space-y-4">
         {announcements.length > 0 && (
           <div className="space-y-2">
             {announcements.map((ann) => (
-              <Alert key={ann.id} className="bg-blue-950/50 border-blue-900 text-blue-200">
+              <Alert key={ann.id} className="bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-200">
                 <AlertDescription>
-                  <strong className="block mb-1 text-blue-100">{ann.title}</strong>
+                  <strong className="block mb-1 text-blue-900 dark:text-blue-100">{ann.title}</strong>
                   {ann.content}
                 </AlertDescription>
               </Alert>
             ))}
           </div>
         )}
-        <Card className="w-full max-w-md bg-slate-900 border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.15)]">
+        <Card className="w-full max-w-md bg-white dark:bg-slate-900 border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.15)]">
           <CardHeader>
-            <CardTitle className="text-teal-400 text-2xl font-bold flex items-center gap-2">
+            <CardTitle className="text-teal-600 dark:text-teal-400 text-2xl font-bold flex items-center gap-2">
               <Camera className="w-6 h-6" />
               {hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
             </CardTitle>
             {user && (
-              <div className="text-slate-300 text-sm mt-2 space-y-1">
+              <div className="text-slate-600 dark:text-slate-300 text-sm mt-2 space-y-1">
                 <p><strong>Nama:</strong> {user.name}</p>
                 <p><strong>NIP:</strong> {user.nip}</p>
                 <p><strong>Kantor 1:</strong> {user.office}</p>
@@ -652,8 +674,8 @@ export default function UserHome() {
           </CardHeader>
           <CardContent className="space-y-6">
             {leaveType ? (
-              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
-                <CheckCircle2 className="w-4 h-4 text-teal-500" />
+              <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
+                <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
                 <AlertDescription className="text-lg font-medium text-center py-4">
                   {leaveType === 'sakit' && "Semoga lekas sembuh dan diberikan kesehatan seperti sediakala. Aamiin"}
                   {leaveType === 'izin' && "Semoga segala urusannya dimudahkan"}
@@ -661,20 +683,20 @@ export default function UserHome() {
                 </AlertDescription>
               </Alert>
             ) : hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
-              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400 flex flex-col items-center justify-center py-6">
-                <CheckCircle2 className="w-8 h-8 text-teal-500 mb-2" />
+              <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400 flex flex-col items-center justify-center py-6">
+                <CheckCircle2 className="w-8 h-8 text-teal-600 dark:text-teal-500 mb-2" />
                 <AlertDescription className="text-center space-y-4">
                   <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
                   <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
                   <div className="mt-4">
-                    <p className="text-sm text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
-                    <p className="text-5xl font-mono font-bold text-white tracking-wider">{countdown}</p>
+                    <p className="text-sm text-teal-600/80 dark:text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
+                    <p className="text-5xl font-mono font-bold text-slate-800 dark:text-white tracking-wider">{countdown}</p>
                   </div>
                 </AlertDescription>
               </Alert>
             ) : hasCheckedOut ? (
-              <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
-                <CheckCircle2 className="w-4 h-4 text-teal-500" />
+              <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
+                <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
                 <AlertDescription>
                   Anda telah menyelesaikan absensi untuk hari ini.
                 </AlertDescription>
@@ -699,31 +721,31 @@ export default function UserHome() {
                 </div>
 
                 {error && (
-                  <Alert variant="destructive" className="bg-red-950/50 border-red-900">
+                  <Alert variant="destructive" className="bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-900 text-red-800 dark:text-red-200">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
 
                 {!hasCheckedIn && checkInCountdown && !canCheckIn && (
-                  <Alert className="bg-teal-950/50 border-teal-900 text-teal-400">
+                  <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
                     <AlertDescription className="text-center">
                       <p className="mb-2">Shift berikutnya: <strong>{nextShift?.name} ({nextShift?.startTime})</strong></p>
                       <p className="text-xs mb-1">Waktu menuju pembukaan absen masuk:</p>
-                      <p className="text-3xl font-mono font-bold tracking-wider">{checkInCountdown}</p>
+                      <p className="text-3xl font-mono font-bold tracking-wider text-slate-800 dark:text-teal-100">{checkInCountdown}</p>
                     </AlertDescription>
                   </Alert>
                 )}
 
-                <div className="flex flex-col gap-2 text-slate-400 text-sm">
+                <div className="flex flex-col gap-2 text-slate-500 dark:text-slate-400 text-sm">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
-                    <span className="flex-1">{isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}</span>
+                    <MapPin className="w-4 h-4 text-teal-600 dark:text-teal-500 shrink-0" />
+                    <span className="flex-1 text-slate-700 dark:text-slate-300">{isLocating ? 'Mencari lokasi...' : address ? `Lokasi: ${address}` : 'Lokasi tidak ditemukan'}</span>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={fetchLocation} 
                       disabled={isLocating && !canRefresh}
-                      className="h-8 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 shrink-0"
+                      className="h-8 border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 shrink-0"
                     >
                       {isLocating && !canRefresh ? 'Mencari...' : 'Refresh'}
                     </Button>

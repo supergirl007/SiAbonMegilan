@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, LayoutDashboard, Users, Clock, Settings, LogOut, Menu, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
+import { ThemeToggle } from '../components/ThemeToggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,7 @@ export default function AdminLayout() {
 
   const handleLogout = () => {
     localStorage.removeItem('user');
+    localStorage.removeItem('loginTime');
     navigate('/login');
   };
 
@@ -70,9 +72,9 @@ export default function AdminLayout() {
   const isAuthorized = currentMenu ? hasAccess(currentMenu) : true;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-300">
       {/* Top Header & Navigation */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo and Desktop Nav */}
@@ -81,9 +83,9 @@ export default function AdminLayout() {
                 {appLogo ? (
                   <img src={appLogo} alt="Logo" className="h-8 w-8 mr-2 object-contain" />
                 ) : (
-                  <Activity className="h-8 w-8 text-emerald-600 mr-2" />
+                  <Activity className="h-8 w-8 text-emerald-600 dark:text-emerald-500 mr-2" />
                 )}
-                <span className="font-bold text-xl text-slate-900 tracking-tight">{appName}</span>
+                <span className="font-bold text-xl text-slate-900 dark:text-slate-50 tracking-tight">{appName}</span>
               </div>
               
               <nav className="hidden md:flex space-x-1">
@@ -92,8 +94,8 @@ export default function AdminLayout() {
                     to="/admin"
                     className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       isPathActive('/admin') 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50'
                     }`}
                   >
                     <div className="flex items-center">
@@ -107,8 +109,8 @@ export default function AdminLayout() {
                   <DropdownMenu>
                     <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
                       isPathActive('/admin/attendance') 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50'
                     }`}>
                       <Clock className="mr-2 h-4 w-4" />
                       Absensi
@@ -141,8 +143,8 @@ export default function AdminLayout() {
                   <DropdownMenu>
                     <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
                       isPathActive('/admin/employees') 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50'
                     }`}>
                       <Users className="mr-2 h-4 w-4" />
                       Master Data
@@ -169,8 +171,8 @@ export default function AdminLayout() {
                   <DropdownMenu>
                     <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
                       isPathActive('/admin/settings') 
-                        ? 'bg-emerald-50 text-emerald-700' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50'
                     }`}>
                       <Settings className="mr-2 h-4 w-4" />
                       Sistem
@@ -199,10 +201,11 @@ export default function AdminLayout() {
             </div>
 
             {/* Mobile Menu Button & User Profile */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
               <div className="md:hidden">
                 <DropdownMenu>
-                  <DropdownMenuTrigger className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9 -mr-2">
+                  <DropdownMenuTrigger className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50 h-9 w-9">
                     <Menu className="h-6 w-6" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
@@ -258,9 +261,9 @@ export default function AdminLayout() {
               </div>
 
               <DropdownMenu>
-                <DropdownMenuTrigger className="relative h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
+                <DropdownMenuTrigger className="relative h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-emerald-100 text-emerald-700">
+                    <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
                       {user.name?.charAt(0) || 'A'}
                     </AvatarFallback>
                   </Avatar>
@@ -277,7 +280,7 @@ export default function AdminLayout() {
                     </DropdownMenuLabel>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400 cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
@@ -289,17 +292,17 @@ export default function AdminLayout() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50">
+      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-950 transition-colors">
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
           {isAuthorized ? (
             <Outlet />
           ) : (
             <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-              <div className="bg-red-50 text-red-500 p-4 rounded-full mb-4">
+              <div className="bg-red-50 dark:bg-red-500/10 text-red-500 p-4 rounded-full mb-4">
                 <Activity className="h-12 w-12" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Akses Ditolak</h2>
-              <p className="text-slate-500 max-w-md">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 mb-2">Akses Ditolak</h2>
+              <p className="text-slate-500 dark:text-slate-400 max-w-md">
                 Anda tidak memiliki hak akses untuk membuka halaman ini. Silakan hubungi Superadmin jika Anda membutuhkan akses.
               </p>
               <Button className="mt-6" onClick={() => navigate('/admin')}>

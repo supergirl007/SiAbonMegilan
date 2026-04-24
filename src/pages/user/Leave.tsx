@@ -53,8 +53,8 @@ export default function UserLeave() {
     // Check autoApprove setting
     const autoApprove = settings?.leaveSettings?.autoApprove;
     
-    // If autoApprove is 0 or disabled, require manual approval
-    if (!autoApprove || autoApprove === "0" || autoApprove === 0) {
+    // If autoApprove is false/string false/0, require manual approval
+    if (!autoApprove || autoApprove === "false" || autoApprove === false || autoApprove === "0" || autoApprove === 0) {
       status = 'pending';
     } else {
       // Auto approve immediately
