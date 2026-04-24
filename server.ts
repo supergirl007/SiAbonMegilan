@@ -356,11 +356,61 @@ async function startServer() {
     }
 
     if (user) {
+      if (user.role !== 'admin') {
+        const deviceId = req.body.deviceId;
+        if (deviceId && doc) {
+          try {
+            const deviceSheet = await getOrCreateSheet('DeviceBindings', ['nip', 'deviceId']);
+            if (deviceSheet) {
+              const rows = await deviceSheet.getRows();
+              const existingDeviceRow = rows.find(r => r.get('deviceId') === deviceId);
+              if (existingDeviceRow && existingDeviceRow.get('nip') !== nip) {
+                return res.status(403).json({ success: false, message: 'Perangkat ini sudah digunakan oleh user yg terdaftar, silahkan gunakan perangkat yang lain.' });
+              }
+
+              const existingNipRow = rows.find(r => r.get('nip') === nip);
+              if (existingNipRow && existingNipRow.get('deviceId') !== deviceId) {
+                return res.status(403).json({ success: false, message: 'Akun Anda sudah terdaftar di perangkat lain. Silahkan gunakan perangkat yang sudah didaftarkan.' });
+              }
+
+              if (!existingDeviceRow && !existingNipRow) {
+                await deviceSheet.addRow({ nip, deviceId });
+              }
+            }
+          } catch (error) {
+            console.error('Error verifying device binding:', error);
+          }
+        }
+      }
       res.json({ success: true, user });
     } else {
       console.log('Login failed: User not found or incorrect password');
       res.status(401).json({ success: false, message: 'NIP atau Password salah' });
     }
+  });
+
+  // --- API to Reset Device Binding ---
+  app.delete('/api/device-bindings/:nip', async (req, res) => {
+    const { nip } = req.params;
+    if (doc) {
+      try {
+        const deviceSheet = await getSheet('DeviceBindings');
+        if (deviceSheet) {
+          const rows = await deviceSheet.getRows();
+          const existingNipRow = rows.find(r => r.get('nip') === nip);
+          if (existingNipRow) {
+            await existingNipRow.delete();
+            return res.json({ success: true, message: 'Binding perangkat berhasil dihapus.' });
+          } else {
+            return res.status(404).json({ success: false, message: 'Binding perangkat tidak ditemukan.' });
+          }
+        }
+      } catch (error) {
+        console.error('Error resetting device binding:', error);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+      }
+    }
+    return res.status(500).json({ success: false, message: 'Spreadsheet tidak terkonfigurasi.' });
   });
 
   app.post('/api/register', async (req, res) => {

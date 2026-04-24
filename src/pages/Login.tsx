@@ -61,10 +61,16 @@ export default function Login() {
     setLoading(true);
 
     try {
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('deviceId', deviceId);
+      }
+
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nip, password }),
+        body: JSON.stringify({ nip, password, deviceId }),
       });
 
       const data = await response.json();
