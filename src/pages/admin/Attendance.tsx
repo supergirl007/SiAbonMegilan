@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer } from "lucide-react";
+import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer, Check, X } from "lucide-react";
+import { toast } from "sonner";
 import ExcelJS from 'exceljs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { format } from 'date-fns';
@@ -129,7 +130,17 @@ export default function AdminAttendance() {
     const attendanceMap: any = {};
     dates.forEach(date => {
       const dayAtt = empAttendance.find(a => a.date === date);
-      attendanceMap[date] = dayAtt ? (dayAtt.status === 'Hadir' ? 'M' : 'D') : '-';
+      let status = '-';
+      if (dayAtt) {
+        if (dayAtt.status === 'Hadir' || dayAtt.status?.includes('Hadir')) status = 'M';
+        else if (dayAtt.status === 'izin') status = 'I';
+        else if (dayAtt.status === 'Sakit' || dayAtt.type === 'sakit') status = 'S';
+        else if (dayAtt.status === 'Cuti') status = 'C';
+        else if (dayAtt.status === 'Dinas Luar') status = 'D';
+        else if (dayAtt.status === 'pending') status = 'P';
+        else status = dayAtt.status?.[0] || 'M';
+      }
+      attendanceMap[date] = status;
     });
     return {
       nama: emp.name,
@@ -150,6 +161,8 @@ export default function AdminAttendance() {
       case 'C': return 'text-amber-600 font-medium';
       case 'S': return 'text-blue-600 font-medium';
       case 'D': return 'text-purple-600 font-medium';
+      case 'I': return 'text-indigo-600 font-medium';
+      case 'P': return 'text-rose-500 font-medium animate-pulse';
       default: return 'text-slate-400';
     }
   };
@@ -500,6 +513,51 @@ export default function AdminAttendance() {
     }
   };
 
+  const pendingRequests = useMemo(() => {
+    return attendanceData.filter(a => a.status === 'pending');
+  }, [attendanceData]);
+
+  const handleApproveLeave = async (id: string, type: string) => {
+    let finalStatus = 'Hadir'; // fallback
+    if (type === 'izin' || type === 'sakit') finalStatus = 'izin';
+    else if (type === 'Cuti' || type === 'cuti') finalStatus = 'Cuti';
+    else if (type === 'dinas_luar') finalStatus = 'Dinas Luar';
+    
+    try {
+      const response = await fetch(`/api/attendance/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: finalStatus })
+      });
+      if (response.ok) {
+        toast.success('Permintaan disetujui');
+        // Refresh attendance data
+        const res = await fetch('/api/attendance');
+        if (res.ok) setAttendanceData(await res.json());
+      }
+    } catch (error) {
+      toast.error('Gagal menyetujui permintaan');
+    }
+  };
+
+  const handleRejectLeave = async (id: string) => {
+    try {
+      const response = await fetch(`/api/attendance/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Ditolak' })
+      });
+      if (response.ok) {
+        toast.success('Permintaan ditolak');
+        // Refresh attendance data
+        const res = await fetch('/api/attendance');
+        if (res.ok) setAttendanceData(await res.json());
+      }
+    } catch (error) {
+      toast.error('Gagal menolak permintaan');
+    }
+  };
+
   const addSignature = (worksheet: ExcelJS.Worksheet, startRow: number, colIndex: number) => {
     worksheet.getCell(startRow + 2, colIndex).value = `Kepala ${puskesmasName}`;
     worksheet.getCell(startRow + 2, colIndex).alignment = { horizontal: 'center' };
@@ -738,11 +796,13 @@ export default function AdminAttendance() {
                   </TableBody>
                 </Table>
               </div>
-              <div className="mt-4 flex gap-4 text-sm text-slate-500">
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-500">
                 <span className="flex items-center gap-1"><span className="font-bold text-emerald-600">M</span> = Masuk/Hadir</span>
                 <span className="flex items-center gap-1"><span className="font-bold text-amber-600">C</span> = Cuti</span>
                 <span className="flex items-center gap-1"><span className="font-bold text-blue-600">S</span> = Sakit</span>
+                <span className="flex items-center gap-1"><span className="font-bold text-indigo-600">I</span> = Izin Pribadi</span>
                 <span className="flex items-center gap-1"><span className="font-bold text-purple-600">D</span> = Dinas Luar</span>
+                <span className="flex items-center gap-1"><span className="font-bold text-rose-500">P</span> = Menunggu Persetujuan</span>
               </div>
             </CardContent>
           </Card>
@@ -1042,7 +1102,56 @@ export default function AdminAttendance() {
               <CardTitle>Daftar Permintaan Persetujuan</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-10 text-slate-500">Belum ada permintaan izin.</div>
+              {pendingRequests.length === 0 ? (
+                <div className="text-center py-10 text-slate-500">Belum ada permintaan izin yang perlu disetujui.</div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama Karyawan</TableHead>
+                        <TableHead>NIP</TableHead>
+                        <TableHead>Jenis Izin</TableHead>
+                        <TableHead>Tanggal</TableHead>
+                        <TableHead>Keterangan</TableHead>
+                        <TableHead className="text-right">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingRequests.map((req) => (
+                        <TableRow key={req.id}>
+                          <TableCell className="font-medium">{req.name}</TableCell>
+                          <TableCell>{req.nip}</TableCell>
+                          <TableCell className="capitalize">{req.type.replace('_', ' ')}</TableCell>
+                          <TableCell>{req.date}</TableCell>
+                          <TableCell className="max-w-xs truncate">{req.location}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                size="sm" 
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
+                                onClick={() => handleApproveLeave(req.id, req.type)}
+                              >
+                                <Check className="h-4 w-4" />
+                                Setujui
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="border-rose-200 text-rose-600 hover:bg-rose-50 flex items-center gap-1"
+                                onClick={() => handleRejectLeave(req.id)}
+                              >
+                                <X className="h-4 w-4" />
+                                Tolak
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

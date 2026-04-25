@@ -35,12 +35,21 @@ export default function AdminDashboard() {
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
   const [notCheckedOut, setNotCheckedOut] = useState<any[]>([]);
 
-  const handleApprove = async (id: string, status: string) => {
+  const handleApprove = async (id: string, type: string, action: 'approve' | 'reject') => {
+    let finalStatus = 'Hadir';
+    if (action === 'reject') {
+      finalStatus = 'Ditolak';
+    } else {
+      if (type === 'izin' || type === 'sakit') finalStatus = 'izin';
+      else if (type === 'Cuti' || type === 'cuti') finalStatus = 'Cuti';
+      else if (type === 'dinas_luar') finalStatus = 'Dinas Luar';
+    }
+
     try {
       const res = await fetch(`/api/attendance/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: finalStatus })
       });
       if (res.ok) {
         setPendingLeaves(prev => prev.filter(l => l.id !== id));
@@ -124,8 +133,8 @@ export default function AdminDashboard() {
           { title: "Belum Absen", value: Math.max(0, employees.length - presentToday.length).toString(), icon: UserX, color: "text-red-600", bg: "bg-red-100" },
         ]);
 
-        // Pending Leaves: type 'izin'/'sakit'/'Cuti' but status 'pending' (assuming status is 'pending' for new requests)
-        setPendingLeaves(attendance.filter((a: any) => ['izin', 'sakit', 'Cuti'].includes(a.type) && a.status === 'pending'));
+        // Pending Leaves: type 'izin'/'sakit'/'Cuti'/'dinas_luar' but status 'pending' (assuming status is 'pending' for new requests)
+        setPendingLeaves(attendance.filter((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type) && a.status === 'pending'));
 
         // Not Checked Out: Checked in today, but no 'out' record
         const checkedInNips = presentToday.map((a: any) => a.nip);
@@ -183,8 +192,8 @@ export default function AdminDashboard() {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs px-2" onClick={() => handleApprove(leave.id, leave.type)}>Setujui</Button>
-                      <Button size="sm" variant="destructive" className="h-8 text-xs px-2" onClick={() => handleApprove(leave.id, 'Ditolak')}>Tolak</Button>
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs px-2" onClick={() => handleApprove(leave.id, leave.type, 'approve')}>Setujui</Button>
+                      <Button size="sm" variant="destructive" className="h-8 text-xs px-2" onClick={() => handleApprove(leave.id, leave.type, 'reject')}>Tolak</Button>
                     </div>
                   </li>
                 ))}

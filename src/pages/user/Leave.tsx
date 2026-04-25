@@ -17,6 +17,8 @@ export default function UserLeave() {
   const [user, setUser] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
 
+  const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
+
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
@@ -26,6 +28,18 @@ export default function UserLeave() {
       .then(res => res.json())
       .then(data => setSettings(data))
       .catch(err => console.error('Error fetching settings:', err));
+
+    // Fetch leave history
+    fetch('/api/attendance')
+      .then(res => res.json())
+      .then(data => {
+        const history = data.filter((a: any) => 
+          a.nip === userData.nip && 
+          ['izin', 'sakit', 'cuti', 'Cuti', 'dinas_luar'].includes(a.type)
+        );
+        setLeaveHistory(history.reverse()); // Show latest first
+      })
+      .catch(err => console.error('Error fetching history:', err));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,18 +178,33 @@ export default function UserLeave() {
 
       <div className="mt-8">
         <h3 className="text-lg font-medium text-white mb-4">Riwayat Pengajuan</h3>
-        <div className="space-y-3">
-          <Card className="bg-slate-900 border-slate-800 text-slate-50">
-            <CardContent className="p-4 flex justify-between items-center">
-              <div>
-                <p className="font-medium">Sakit</p>
-                <p className="text-xs text-slate-400">12 Mar 2026 - 13 Mar 2026</p>
-              </div>
-              <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Disetujui
-              </span>
-            </CardContent>
-          </Card>
+        <div className="space-y-3 pb-8">
+          {leaveHistory.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-4">Belum ada riwayat pengajuan.</p>
+          ) : (
+            leaveHistory.map((history, idx) => (
+              <Card key={idx} className="bg-slate-900 border-slate-800 text-slate-50">
+                <CardContent className="p-4 flex justify-between items-center">
+                  <div>
+                    <p className="font-medium capitalize">{history.type.replace('_', ' ')}</p>
+                    <p className="text-xs text-slate-400">{history.date}</p>
+                    {history.location && (
+                      <p className="text-xs text-slate-500 mt-1 italic">"{history.location}"</p>
+                    )}
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-1 rounded border ${
+                    history.status === 'pending' 
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                      : history.status === 'Ditolak'
+                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  }`}>
+                    {history.status === 'pending' ? 'Menunggu' : history.status === 'Ditolak' ? 'Ditolak' : 'Disetujui'}
+                  </span>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </div>
