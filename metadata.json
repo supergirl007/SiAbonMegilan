@@ -1,5 +1,9 @@
 {
-  "name": "Si Abon Eiite App",
-  "description": "Attendance System of Puskesmas",
-  "requestFramePermissions": ["camera", "geolocation"]
+  "name": "Si Abon Elite App",
+  "description": "Sistem Absensi Online Elegan Informatif Terkini",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": []
 }
