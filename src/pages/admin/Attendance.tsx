@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer, Check, X } from "lucide-react";
+import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer, Check, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from 'exceljs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
@@ -76,18 +76,19 @@ export default function AdminAttendance() {
 
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        const response = await fetch('/api/attendance');
-        if (response.ok) {
-          const data = await response.json();
-          setAttendanceData(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch attendance:', error);
+  const fetchAttendance = async () => {
+    try {
+      const response = await fetch('/api/attendance');
+      if (response.ok) {
+        const data = await response.json();
+        setAttendanceData(data);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch attendance:', error);
+    }
+  };
+
+  useEffect(() => {
     fetchAttendance();
   }, []);
 
@@ -673,12 +674,38 @@ export default function AdminAttendance() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Manajemen Absensi</h1>
-        <p className="text-sm text-slate-500">Kelola data absensi, persetujuan izin, dan hari libur.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Manajemen Absensi</h1>
+          <p className="text-sm text-slate-500">Kelola data absensi, persetujuan izin, dan hari libur.</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="flex items-center gap-2"
+          onClick={fetchAttendance}
+        >
+          <RefreshCw className="h-4 w-4" />
+          Perbarui Data
+        </Button>
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-4">
+        <TabsList className="bg-white p-1 rounded-lg border shadow-sm flex-wrap h-auto">
+          <TabsTrigger value="harian">Harian</TabsTrigger>
+          <TabsTrigger value="bulanan">Bulanan</TabsTrigger>
+          <TabsTrigger value="analisa">Analisa Data</TabsTrigger>
+          <TabsTrigger value="persetujuan" className="relative">
+            Persetujuan
+            {pendingRequests.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">
+                {pendingRequests.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="holidays">Hari Libur</TabsTrigger>
+          <TabsTrigger value="pengumuman">Pengumuman</TabsTrigger>
+        </TabsList>
         <TabsContent value="harian" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">

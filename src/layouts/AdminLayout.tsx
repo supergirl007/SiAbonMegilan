@@ -20,25 +20,36 @@ export default function AdminLayout() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [appName, setAppName] = useState("Si Abon Megilan");
   const [appLogo, setAppLogo] = useState("");
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/settings');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.generalSettings?.appName) {
-            setAppName(data.generalSettings.appName);
-          }
-          if (data.generalSettings?.appLogo) {
-            setAppLogo(data.generalSettings.appLogo);
-          }
+        const [setRes, attRes] = await Promise.all([
+          fetch('/api/settings'),
+          fetch('/api/attendance')
+        ]);
+
+        if (setRes.ok) {
+          const data = await setRes.json();
+          if (data.generalSettings?.appName) setAppName(data.generalSettings.appName);
+          if (data.generalSettings?.appLogo) setAppLogo(data.generalSettings.appLogo);
+        }
+
+        if (attRes.ok) {
+          const attData = await attRes.json();
+          const count = attData.filter((a: any) => a.status === 'pending').length;
+          setPendingCount(count);
         }
       } catch (error) {
-        console.error('Failed to fetch settings:', error);
+        console.error('Failed to fetch:', error);
       }
     };
     fetchSettings();
+
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchSettings, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -107,7 +118,7 @@ export default function AdminLayout() {
 
                 {hasAccess('Absensi') && (
                   <DropdownMenu>
-                    <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none ${
+                    <DropdownMenuTrigger className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center focus:outline-none relative ${
                       isPathActive('/admin/attendance') 
                         ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
                         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50'
@@ -115,6 +126,11 @@ export default function AdminLayout() {
                       <Clock className="mr-2 h-4 w-4" />
                       Absensi
                       <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+                      {pendingCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white">
+                          {pendingCount}
+                        </span>
+                      )}
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-48">
                       <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer" />}>
@@ -126,8 +142,9 @@ export default function AdminLayout() {
                       <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer" />}>
                         Analisa Data
                       </DropdownMenuItem>
-                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer" />}>
-                        Persetujuan Izin
+                      <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer flex justify-between items-center" />}>
+                        <span>Persetujuan Izin</span>
+                        {pendingCount > 0 && <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingCount}</span>}
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer" />}>
                         Hari Libur
@@ -225,7 +242,10 @@ export default function AdminLayout() {
                           <DropdownMenuItem render={<Link to="/admin/attendance?tab=harian" className="w-full cursor-pointer pl-6" />}>Absen Harian</DropdownMenuItem>
                           <DropdownMenuItem render={<Link to="/admin/attendance?tab=bulanan" className="w-full cursor-pointer pl-6" />}>Absensi Bulanan</DropdownMenuItem>
                           <DropdownMenuItem render={<Link to="/admin/attendance?tab=analisa" className="w-full cursor-pointer pl-6" />}>Analisa Data</DropdownMenuItem>
-                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6" />}>Persetujuan Izin</DropdownMenuItem>
+                          <DropdownMenuItem render={<Link to="/admin/attendance?tab=persetujuan" className="w-full cursor-pointer pl-6 flex justify-between items-center" />}>
+                            <span>Persetujuan Izin</span>
+                            {pendingCount > 0 && <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingCount}</span>}
+                          </DropdownMenuItem>
                           <DropdownMenuItem render={<Link to="/admin/attendance?tab=holidays" className="w-full cursor-pointer pl-6" />}>Hari Libur</DropdownMenuItem>
                           <DropdownMenuItem render={<Link to="/admin/attendance?tab=pengumuman" className="w-full cursor-pointer pl-6" />}>Pengumuman</DropdownMenuItem>
                         </DropdownMenuGroup>
