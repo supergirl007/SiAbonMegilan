@@ -389,6 +389,53 @@ async function startServer() {
     }
   });
 
+  app.post('/api/change-password', async (req, res) => {
+    const { id, role, oldPassword, newPassword } = req.body;
+    
+    if (!id || !role || !oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    }
+
+    let passwordUpdated = false;
+    if (doc) {
+      try {
+        const sheetName = role === 'admin' ? 'Admins' : 'Users';
+        const sheet = await getSheet(sheetName);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const userRow = rows.find(r => r.get('id') === id && String(r.get('password')) === String(oldPassword));
+          
+          if (userRow) {
+            userRow.set('password', newPassword);
+            await userRow.save();
+            passwordUpdated = true;
+          } else {
+            return res.status(400).json({ success: false, message: 'Password lama salah' });
+          }
+        }
+      } catch (error) {
+        console.error('Error changing password:', error);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan sistem' });
+      }
+    }
+
+    if (!passwordUpdated) {
+      const user = db.users.find(u => String(u.id) === String(id));
+      if (user) {
+        if (user.password === oldPassword) {
+          user.password = newPassword;
+          passwordUpdated = true;
+        } else {
+          return res.status(400).json({ success: false, message: 'Password lama salah' });
+        }
+      } else {
+        return res.status(404).json({ success: false, message: 'Pengguna tidak ditemukan' });
+      }
+    }
+
+    res.json({ success: true, message: 'Password berhasil diubah' });
+  });
+
   // --- API to Reset Device Binding ---
   app.delete('/api/device-bindings/:nip', async (req, res) => {
     const { nip } = req.params;

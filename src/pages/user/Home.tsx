@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MapPin, Camera, CheckCircle2 } from 'lucide-react';
 import { checkAndFireAlarm } from '@/utils/alarm';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 import { format } from 'date-fns';
 
@@ -35,6 +37,9 @@ export default function UserHome() {
   const [nextShift, setNextShift] = useState<any>(null);
   const [checkInCountdown, setCheckInCountdown] = useState<string>('');
   const [canCheckIn, setCanCheckIn] = useState(true);
+  const [isTambahJaga, setIsTambahJaga] = useState(false);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [selectedFriendNip, setSelectedFriendNip] = useState<string>('');
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -44,17 +49,22 @@ export default function UserHome() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [locRes, setRes, attRes, shiftRes, annRes] = await Promise.all([
+        const [locRes, setRes, attRes, shiftRes, annRes, empRes] = await Promise.all([
           fetch('/api/locations'),
           fetch('/api/settings'),
           fetch('/api/attendance'),
           fetch('/api/shifts'),
-          fetch('/api/announcements')
+          fetch('/api/announcements'),
+          fetch('/api/employees')
         ]);
         
         if (locRes.ok) {
           const data = await locRes.json();
           setLocations(data);
+        }
+        if (empRes && empRes.ok) {
+          const data = await empRes.json();
+          setEmployees(data);
         }
         if (setRes.ok) {
           const data = await setRes.json();
@@ -593,20 +603,35 @@ export default function UserHome() {
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+    let submitNip = user.nip || 'N/A';
+    let submitName = user.name || 'N/A';
+    let submitType = hasCheckedIn ? 'out' : 'in';
+
+    if (isTambahJaga && selectedFriendNip) {
+      const friend = employees.find(e => e.nip === selectedFriendNip);
+      if (friend) {
+        submitNip = friend.nip;
+        submitName = friend.name;
+        // User checking in for friend
+        submitType = 'in';
+      }
+    }
+
     setIsAbsenting(true);
     try {
       const response = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nip: user.nip || 'N/A',
-          name: user.name || 'N/A',
+          nip: submitNip,
+          name: submitName,
           date: format(new Date(), 'yyyy-MM-dd'),
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          type: hasCheckedIn ? 'out' : 'in',
+          type: submitType,
           location: { lat: location.lat, lng: location.lng, address: address },
-          status: 'Hadir',
+          status: isTambahJaga ? 'Hadir (Ganti Jaga)' : 'Hadir',
           photoUrl: compressedImageSrc,
+          shift: currentShift?.name || 'Reguler'
         }),
       });
 
@@ -616,6 +641,11 @@ export default function UserHome() {
       }
       alert('Absensi berhasil dan terkirim ke Database Kepegawaian');
       
+      if (isTambahJaga) {
+        setIsTambahJaga(false);
+        setSelectedFriendNip('');
+      }
+
       // Re-fetch attendance data to update UI instead of redirecting
       const attRes = await fetch('/api/attendance');
       if (attRes.ok) {
@@ -661,7 +691,7 @@ export default function UserHome() {
           <CardHeader>
             <CardTitle className="text-teal-600 dark:text-teal-400 text-2xl font-bold flex items-center gap-2">
               <Camera className="w-6 h-6" />
-              {hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
+              {isTambahJaga ? 'Tambah Jaga Teman' : hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
             </CardTitle>
             {user && (
               <div className="text-slate-600 dark:text-slate-300 text-sm mt-2 space-y-1">
@@ -682,27 +712,52 @@ export default function UserHome() {
                   {leaveType === 'Cuti' && "Semoga hari - hari cuti anda bermanfaat"}
                 </AlertDescription>
               </Alert>
-            ) : hasCheckedIn && !canCheckOut && !hasCheckedOut ? (
-              <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400 flex flex-col items-center justify-center py-6">
-                <CheckCircle2 className="w-8 h-8 text-teal-600 dark:text-teal-500 mb-2" />
-                <AlertDescription className="text-center space-y-4">
-                  <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
-                  <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
-                  <div className="mt-4">
-                    <p className="text-sm text-teal-600/80 dark:text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
-                    <p className="text-5xl font-mono font-bold text-slate-800 dark:text-white tracking-wider">{countdown}</p>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ) : hasCheckedOut ? (
-              <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
-                <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
-                <AlertDescription>
-                  Anda telah menyelesaikan absensi untuk hari ini.
-                </AlertDescription>
-              </Alert>
+            ) : hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga ? (
+              <>
+                <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400 flex flex-col items-center justify-center py-6">
+                  <CheckCircle2 className="w-8 h-8 text-teal-600 dark:text-teal-500 mb-2" />
+                  <AlertDescription className="text-center space-y-4">
+                    <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
+                    <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
+                    <div className="mt-4">
+                      <p className="text-sm text-teal-600/80 dark:text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
+                      <p className="text-5xl font-mono font-bold text-slate-800 dark:text-white tracking-wider">{countdown}</p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+                <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">Tambah Jaga (Gantikan Teman)</Button>
+              </>
+            ) : hasCheckedOut && !isTambahJaga ? (
+              <>
+                <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
+                  <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
+                  <AlertDescription>
+                    Anda telah menyelesaikan absensi untuk hari ini.
+                  </AlertDescription>
+                </Alert>
+                <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">Tambah Jaga (Gantikan Teman)</Button>
+              </>
             ) : (
               <>
+                {isTambahJaga && (
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                       <Label className="text-slate-700 dark:text-slate-300">Pilih Teman</Label>
+                       <Button variant="ghost" size="sm" onClick={() => setIsTambahJaga(false)} className="h-6 text-red-500 hover:text-red-600 px-2 py-0">Batal</Button>
+                    </div>
+                    <Select onValueChange={setSelectedFriendNip} value={selectedFriendNip}>
+                      <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-teal-500 text-slate-800 dark:text-slate-200">
+                         <SelectValue placeholder="Pilih teman yang akan dijagakan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.filter(e => e.nip !== user?.nip).map(emp => (
+                          <SelectItem key={emp.nip} value={emp.nip}>{emp.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
                 <div className="relative overflow-hidden rounded-xl border-2 border-teal-500/20">
                   <Webcam
                     audio={false}
@@ -759,10 +814,10 @@ export default function UserHome() {
 
                 <Button
                   onClick={() => isWithinRange ? handleAbsen() : navigate('/user/leave')}
-                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange)}
+                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip)}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
+                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
               </>
             )}
