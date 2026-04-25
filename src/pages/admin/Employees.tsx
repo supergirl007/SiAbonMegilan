@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2 } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Plus, Trash2, Upload, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminEmployees() {
@@ -31,6 +32,8 @@ export default function AdminEmployees() {
   const [newEmpGender, setNewEmpGender] = useState("");
   const [newEmpCluster, setNewEmpCluster] = useState("");
   const [newEmpUnit, setNewEmpUnit] = useState("");
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // State for Locations
   const [locations, setLocations] = useState<{id: string, desa: string, kecamatan: string, kabupaten: string, coordinates: string, radius: number}[]>([]);
@@ -231,6 +234,73 @@ export default function AdminEmployees() {
       console.error("Error deleting employee:", error);
       toast.error("Terjadi kesalahan jaringan");
     }
+  };
+
+  const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+        // Expected headers mapping (adjust as needed based on Excel format)
+        // name, nip, office, office2, email, gender, cluster, unit
+        const formattedEmployees = jsonData.map((row, index) => ({
+          id: (Date.now() + index).toString(),
+          name: row.Nama || row.name || "",
+          nip: String(row.NIP || row.nip || ""),
+          office: row.Kantor || row.office || "",
+          office2: row.Kantor2 || row.office2 || "",
+          email: row.Email || row.email || "",
+          gender: row.Gender || row.gender || row["Jenis Kelamin"] || "",
+          cluster: row.Klaster || row.cluster || "",
+          unit: row.Unit || row.unit || "",
+          password: "123456"
+        })).filter(emp => emp.name && emp.nip);
+
+        if (formattedEmployees.length === 0) {
+          toast.error("Tidak ada data valid yang ditemukan (Minimal perlukan Nama dan NIP)");
+          setIsUploading(false);
+          return;
+        }
+
+        const response = await fetch('/api/employees/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formattedEmployees),
+        });
+
+        if (response.ok) {
+          const fetchedRes = await fetch('/api/employees');
+          if (fetchedRes.ok) {
+            const freshData = await fetchedRes.json();
+            setEmployees(freshData);
+            localStorage.setItem('employeesData', JSON.stringify(freshData));
+          }
+          toast.success(`${formattedEmployees.length} karyawan berhasil diimpor`);
+          setIsBulkUploadOpen(false);
+        } else {
+          toast.error("Gagal mengimpor data ke server");
+        }
+      } catch (error) {
+        console.error("Bulk upload error:", error);
+        toast.error("Terjadi kesalahan saat memproses file Excel");
+      } finally {
+        setIsUploading(false);
+        // Reset file input
+        event.target.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const handleAddLocation = async () => {
@@ -502,13 +572,60 @@ export default function AdminEmployees() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Kelola Tenaga Kerja</CardTitle>
-              <Dialog open={isAddEmployeeOpen} onOpenChange={setIsAddEmployeeOpen}>
-                <DialogTrigger render={
-                  <Button className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Tambah Karyawan
-                  </Button>
-                } />
+              <div className="flex gap-2">
+                <Dialog open={isBulkUploadOpen} onOpenChange={setIsBulkUploadOpen}>
+                  <DialogTrigger render={
+                    <Button variant="outline" className="flex items-center gap-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50">
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Import Excel
+                    </Button>
+                  } />
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Import Karyawan via Excel</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 text-center">
+                      <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 flex flex-col items-center justify-center gap-3">
+                        <Upload className="h-10 w-10 text-emerald-500" />
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Klik untuk mengupload file Excel (.xlsx, .xls)</p>
+                          <p className="text-xs text-slate-500">Gunakan kolom: Nama, NIP, Gender, Klaster, Unit, Kantor, Kantor2, Email</p>
+                        </div>
+                        <Input 
+                          type="file" 
+                          accept=".xlsx, .xls" 
+                          onChange={handleBulkUpload}
+                          disabled={isUploading}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        />
+                        {isUploading && (
+                          <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium animate-pulse">
+                            Memproses file...
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-left text-xs space-y-2 p-3 bg-emerald-50 rounded border border-emerald-100">
+                        <p className="font-semibold text-emerald-800">Petunjuk Format Excel:</p>
+                        <ul className="list-disc list-inside space-y-1 text-emerald-700">
+                          <li>File harus berekstensi .xlsx atau .xls</li>
+                          <li>Nama kolom yang didukung: Nama, NIP, Gender (Laki-laki/Perempuan), Klaster (1-5), Unit, Kantor, Kantor2, Email</li>
+                          <li>Password default akan diatur 123456</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>Batal</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={isAddEmployeeOpen} onOpenChange={setIsAddEmployeeOpen}>
+                  <DialogTrigger render={
+                    <Button className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Tambah Karyawan
+                    </Button>
+                  } />
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Tambah Karyawan Baru</DialogTitle>
@@ -627,6 +744,7 @@ export default function AdminEmployees() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </CardHeader>
             <CardContent>
               {employees.length === 0 ? (

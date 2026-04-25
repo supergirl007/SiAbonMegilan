@@ -1,5 +1,5 @@
 {
-  "name": "Si Abon Megilan",
+  "name": "Si Abon Eiite App",
   "description": "Attendance System of Puskesmas",
   "requestFramePermissions": ["camera", "geolocation"]
 }

@@ -33,7 +33,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const [appName, setAppName] = useState("Si Abon Megilan");
+  const [appName, setAppName] = useState("Si Abon Eiite App");
   const [appLogo, setAppLogo] = useState("");
 
   useEffect(() => {

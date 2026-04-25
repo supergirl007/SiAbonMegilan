@@ -20,7 +20,7 @@ export default function AdminSettings() {
 
   // State for General Settings
   const [generalSettings, setGeneralSettings] = useState({
-    appName: "Si Abon Megilan",
+    appName: "Si Abon Eiite App",
     appLogo: "",
     companyName: "Puskesmas Sehat",
     headName: "Dr. Budi Santoso",

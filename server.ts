@@ -32,7 +32,7 @@ async function startServer() {
       { id: 1, name: 'Kantor Induk', lat: -7.250445, lng: 112.768845, radius: 300 },
     ],
     settings: {
-      appName: 'Si Abon Megilan',
+      appName: 'Si Abon Eiite App',
       companyName: 'Puskesmas Sehat',
       headName: 'Dr. Budi Santoso',
       address: 'Jl. Kesehatan No. 1, Kota Sehat',
@@ -175,6 +175,35 @@ async function startServer() {
       db.employees.push(employee);
     }
     res.json({ success: true, message: 'Karyawan berhasil ditambahkan' });
+  });
+
+  app.post('/api/employees/bulk', async (req, res) => {
+    const employeesData = req.body; // Array of employee objects
+    
+    if (!Array.isArray(employeesData)) {
+      return res.status(400).json({ success: false, message: 'Data harus berupa array' });
+    }
+
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password']);
+        if (sheet) {
+          // Flatten data and add rows
+          const rows = employeesData.map(emp => ({
+            ...emp,
+            office2: emp.office2 || ''
+          }));
+          await sheet.addRows(rows);
+          delete cache['employees'];
+        }
+      } catch (error) {
+        console.error('Error saving bulk employees to spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menyimpan data ke spreadsheet' });
+      }
+    } else {
+      db.employees.push(...employeesData);
+    }
+    res.json({ success: true, message: `${employeesData.length} karyawan berhasil ditambahkan` });
   });
 
   app.delete('/api/employees/:id', async (req, res) => {

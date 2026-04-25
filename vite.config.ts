@@ -13,12 +13,15 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
+        workbox: {
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5MB
+        },
         devOptions: {
           enabled: true
         },
         manifest: {
-          name: 'Absensi App',
-          short_name: 'Absensi',
+          name: 'Si Abon Eiite App',
+          short_name: 'Si Abon',
           theme_color: '#14b8a6',
           icons: [
             {

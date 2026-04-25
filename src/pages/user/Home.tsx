@@ -631,7 +631,7 @@ export default function UserHome() {
           location: { lat: location.lat, lng: location.lng, address: address },
           status: isTambahJaga ? 'Hadir (Ganti Jaga)' : 'Hadir',
           photoUrl: compressedImageSrc,
-          shift: currentShift?.name || 'Reguler'
+          shift: nextShift?.name || 'Reguler'
         }),
       });
 
