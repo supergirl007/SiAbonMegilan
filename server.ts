@@ -198,7 +198,7 @@ async function startServer() {
         }
       } catch (error) {
         console.error('Error saving bulk employees to spreadsheet:', error);
-        return res.status(500).json({ success: false, message: 'Gagal menyimpan data ke spreadsheet' });
+        return res.status(500).json({ success: false, message: `Gagal menyimpan data ke spreadsheet: ${error instanceof Error ? error.message : String(error)}` });
       }
     } else {
       db.employees.push(...employeesData);
@@ -216,6 +216,7 @@ async function startServer() {
           const rowToDelete = rows.find(r => r.get('id') === id);
           if (rowToDelete) {
             await rowToDelete.delete();
+            delete cache['employees'];
           }
         }
       } catch (error) {
@@ -569,6 +570,9 @@ async function startServer() {
   app.get('/api/attendance', async (req, res) => {
     if (doc) {
       try {
+        if (cache['attendance'] && Date.now() - cache['attendance'].timestamp < CACHE_DURATION) {
+          return res.json(cache['attendance'].data);
+        }
         const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -586,6 +590,7 @@ async function startServer() {
             status: row.get('status'),
             photoUrl: row.get('photoUrl')
           }));
+          cache['attendance'] = { timestamp: Date.now(), data: attendance };
           return res.json(attendance);
         }
       } catch (error) {
@@ -619,6 +624,7 @@ async function startServer() {
             photoUrl: photoUrlToSave,
             location: typeof attendanceData.location === 'object' ? JSON.stringify(attendanceData.location) : attendanceData.location
           });
+          delete cache['attendance'];
         }
       } catch (error) {
         console.error('Error saving attendance to spreadsheet:', error);
@@ -643,6 +649,7 @@ async function startServer() {
           if (rowToUpdate) {
             rowToUpdate.set('status', status);
             await rowToUpdate.save();
+            delete cache['attendance'];
             return res.json({ success: true, message: 'Status berhasil diperbarui' });
           } else {
             return res.status(404).json({ success: false, message: 'Absensi tidak ditemukan' });
@@ -971,6 +978,9 @@ async function startServer() {
   app.get('/api/shifts', async (req, res) => {
     if (doc) {
       try {
+        if (cache['shifts'] && Date.now() - cache['shifts'].timestamp < CACHE_DURATION) {
+          return res.json(cache['shifts'].data);
+        }
         const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'crossesMidnight', 'isActive']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -982,6 +992,7 @@ async function startServer() {
             crossesMidnight: String(row.get('crossesMidnight')).toLowerCase() === 'true',
             isActive: String(row.get('isActive')).toLowerCase() === 'true'
           }));
+          cache['shifts'] = { timestamp: Date.now(), data: shifts };
           return res.json(shifts);
         }
       } catch (error) {
@@ -1005,6 +1016,7 @@ async function startServer() {
             crossesMidnight: shift.crossesMidnight.toString(),
             isActive: shift.isActive.toString()
           });
+          delete cache['shifts'];
         }
       } catch (error) {
         console.error('Error saving shift to spreadsheet:', error);
@@ -1023,6 +1035,7 @@ async function startServer() {
           const rowToDelete = rows.find(r => r.get('id') === id);
           if (rowToDelete) {
             await rowToDelete.delete();
+            delete cache['shifts'];
           }
         }
       } catch (error) {
@@ -1048,6 +1061,7 @@ async function startServer() {
             rowToUpdate.set('crossesMidnight', shift.crossesMidnight.toString());
             rowToUpdate.set('isActive', shift.isActive.toString());
             await rowToUpdate.save();
+            delete cache['shifts'];
           }
         }
       } catch (error) {
@@ -1062,6 +1076,9 @@ async function startServer() {
   app.get('/api/announcements', async (req, res) => {
     if (doc) {
       try {
+        if (cache['announcements'] && Date.now() - cache['announcements'].timestamp < CACHE_DURATION) {
+          return res.json(cache['announcements'].data);
+        }
         const sheet = await getOrCreateSheet('Announcements', ['id', 'title', 'content', 'date', 'expiryDate', 'isActive']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -1073,6 +1090,7 @@ async function startServer() {
             expiryDate: row.get('expiryDate'),
             isActive: String(row.get('isActive')).toLowerCase() === 'true'
           }));
+          cache['announcements'] = { timestamp: Date.now(), data: announcements };
           return res.json(announcements);
         }
       } catch (error) {
@@ -1093,6 +1111,7 @@ async function startServer() {
             isActive: announcement.isActive.toString(),
             date: announcement.date || new Date().toISOString().split('T')[0]
           });
+          delete cache['announcements'];
         }
       } catch (error) {
         console.error('Error saving announcement to spreadsheet:', error);
@@ -1114,6 +1133,7 @@ async function startServer() {
           if (rowToUpdate) {
             rowToUpdate.set('isActive', isActive.toString());
             await rowToUpdate.save();
+            delete cache['announcements'];
           }
         }
       } catch (error) {
@@ -1134,6 +1154,7 @@ async function startServer() {
           const rowToDelete = rows.find(r => r.get('id') === id);
           if (rowToDelete) {
             await rowToDelete.delete();
+            delete cache['announcements'];
           }
         }
       } catch (error) {
@@ -1148,6 +1169,9 @@ async function startServer() {
   app.get('/api/settings', async (req, res) => {
     if (doc) {
       try {
+        if (cache['settings'] && Date.now() - cache['settings'].timestamp < CACHE_DURATION) {
+          return res.json(cache['settings'].data);
+        }
         const sheet = await getOrCreateSheet('Settings', ['key', 'value']);
         if (sheet) {
           const rows = await sheet.getRows();
@@ -1160,6 +1184,7 @@ async function startServer() {
             }
           });
           if (Object.keys(settings).length > 0) {
+            cache['settings'] = { timestamp: Date.now(), data: settings };
             return res.json(settings);
           }
         }
@@ -1192,6 +1217,7 @@ async function startServer() {
           } else {
             await sheet.addRow({ key, value: stringifiedValue });
           }
+          delete cache['settings'];
         }
       } catch (error) {
         console.error('Error saving settings to spreadsheet:', error);

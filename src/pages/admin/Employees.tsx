@@ -315,7 +315,12 @@ export default function AdminEmployees() {
           toast.success(`${formattedEmployees.length} karyawan berhasil diimpor`);
           setIsBulkUploadOpen(false);
         } else {
-          toast.error("Gagal mengimpor data ke server");
+          try {
+            const errorData = await response.json();
+            toast.error(errorData.message || "Gagal mengimpor data ke server");
+          } catch {
+            toast.error("Gagal mengimpor data ke server");
+          }
         }
       } catch (error) {
         console.error("Bulk upload error:", error);
