@@ -236,6 +236,32 @@ export default function AdminEmployees() {
     }
   };
 
+  const downloadTemplate = () => {
+    const wsData = [
+      ["Nama", "NIP", "Gender", "Klaster", "Unit", "Kantor", "Kantor2", "Email"],
+      ["Budi Santoso", "198001012005011001", "Laki-laki", "1", "Poli Umum", "Puskesmas Maju Jaya", "", "budi@example.com"],
+      ["Siti Aminah", "198502022010012002", "Perempuan", "2", "Poli Gigi", "Puskesmas Maju Jaya", "Pustu B", "siti@example.com"]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // Auto-size columns
+    ws['!cols'] = [
+      { wch: 20 }, // Nama
+      { wch: 25 }, // NIP
+      { wch: 15 }, // Gender
+      { wch: 10 }, // Klaster
+      { wch: 15 }, // Unit
+      { wch: 25 }, // Kantor
+      { wch: 25 }, // Kantor2
+      { wch: 25 }  // Email
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Format Template Karyawan");
+    XLSX.writeFile(wb, "Template_Karyawan.xlsx");
+  };
+
   const handleBulkUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -585,7 +611,7 @@ export default function AdminEmployees() {
                       <DialogTitle>Import Karyawan via Excel</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4 text-center">
-                      <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 flex flex-col items-center justify-center gap-3">
+                      <div className="p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 flex flex-col items-center justify-center gap-3 relative transition-colors hover:bg-slate-100">
                         <Upload className="h-10 w-10 text-emerald-500" />
                         <div className="space-y-1">
                           <p className="text-sm font-medium">Klik untuk mengupload file Excel (.xlsx, .xls)</p>
@@ -597,6 +623,7 @@ export default function AdminEmployees() {
                           onChange={handleBulkUpload}
                           disabled={isUploading}
                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          title="Klik untuk memilih file excel"
                         />
                         {isUploading && (
                           <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium animate-pulse">
@@ -604,17 +631,29 @@ export default function AdminEmployees() {
                           </div>
                         )}
                       </div>
+                      <div className="flex justify-center">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={downloadTemplate}
+                          className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 w-full"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                          Download Format Template Excel
+                        </Button>
+                      </div>
                       <div className="text-left text-xs space-y-2 p-3 bg-emerald-50 rounded border border-emerald-100">
                         <p className="font-semibold text-emerald-800">Petunjuk Format Excel:</p>
                         <ul className="list-disc list-inside space-y-1 text-emerald-700">
+                          <li>Sangat disarankan memakai <strong>Format Template Excel</strong> di atas.</li>
+                          <li>Pastikan kolom NIP diformat sebagai <kbd className="px-1 py-0.5 bg-emerald-100 rounded text-[10px]">Text</kbd> (atau awali dengan petik satu <code>'198...</code>) agar angkanya tidak terpotong.</li>
                           <li>File harus berekstensi .xlsx atau .xls</li>
-                          <li>Nama kolom yang didukung: Nama, NIP, Gender (Laki-laki/Perempuan), Klaster (1-5), Unit, Kantor, Kantor2, Email</li>
-                          <li>Password default akan diatur 123456</li>
+                          <li>Password default saat mengunggah karyawan akan diatur otomatis menjadi <strong>123456</strong>.</li>
                         </ul>
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>Batal</Button>
+                      <Button variant="outline" onClick={() => setIsBulkUploadOpen(false)}>Tutup</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
