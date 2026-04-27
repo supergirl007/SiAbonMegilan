@@ -92,20 +92,77 @@ export default function AdminAttendance() {
     fetchAttendance();
   }, []);
 
+  const parseTime = (timeStr: string) => {
+    if (!timeStr) return 0;
+    let clean = timeStr.replace(/\./g, ':').trim().toUpperCase();
+    let isPM = clean.includes('PM');
+    let isAM = clean.includes('AM');
+    clean = clean.replace(/[A-Z]/g, '').trim();
+    const parts = clean.split(':');
+    let h = parseInt(parts[0] || '0', 10);
+    let m = parseInt(parts[1] || '0', 10);
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    return h * 60 + m;
+  };
+
+  const getShiftForTime = (timeMinutes: number) => {
+    if (!shifts || shifts.length === 0) return { name: "Pagi", start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
+    
+    const activeShifts = shifts.filter(s => s.isActive);
+    let bestShift = activeShifts[0] || shifts[0];
+    let minDiff = Infinity;
+    
+    // Evaluate closest shift start time
+    activeShifts.forEach(shift => {
+      const startMinutes = parseTime(shift.startTime);
+      let diff = Math.abs(timeMinutes - startMinutes);
+      // handling wrapping across midnight
+      if (diff > 720) diff = 1440 - diff;
+      
+      if (diff < minDiff) {
+        minDiff = diff;
+        bestShift = shift;
+      }
+    });
+
+    return {
+      name: bestShift.name,
+      start: parseTime(bestShift.startTime),
+      end: parseTime(bestShift.endTime),
+      tolerance: parseInt(absensiSettings.tolerance || '15')
+    };
+  };
+
   // Process attendance data for Harian
-  const processedHarian = attendanceData.filter(a => a.date === format(today, 'yyyy-MM-dd')).map(a => ({
-    nama: a.name,
-    nip: a.nip,
-    kantor: typeof a.location === 'object' && a.location !== null ? a.location.address || JSON.stringify(a.location) : a.location,
-    shift: "-", // Determine shift based on time
-    status: a.status,
-    jamMasuk: a.type === 'in' ? a.time : "-",
-    jamKeluar: a.type === 'out' ? a.time : "-"
-  }));
+  const processedHarian = attendanceData.filter(a => a.date === format(today, 'yyyy-MM-dd')).map(a => {
+    const isIzin = ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status);
+    const locationVal = typeof a.location === 'object' && a.location !== null ? a.location.address || JSON.stringify(a.location) : a.location;
+    
+    let shiftDisplay = "-";
+    if (a.time && a.time !== "-") {
+      const t = parseTime(a.time);
+      const shift = getShiftForTime(t);
+      if (shift && shift.name) {
+        shiftDisplay = shift.name;
+      }
+    }
+
+    return {
+      nama: a.name,
+      nip: a.nip,
+      kantor: isIzin ? "-" : locationVal,
+      shift: shiftDisplay,
+      status: a.status,
+      jamMasuk: a.type === 'in' ? a.time : "-",
+      jamKeluar: a.type === 'out' ? a.time : "-",
+      keterangan: isIzin ? locationVal : "-"
+    };
+  });
 
   // Fallback to mock if empty for demonstration
   const displayHarian = processedHarian.length > 0 ? processedHarian : [
-    { nama: "Admin User", nip: "123456", kantor: "Kantor Induk", shift: "Pagi", status: "Hadir", jamMasuk: "07:45", jamKeluar: "-" }
+    { nama: "Admin User", nip: "123456", kantor: "Kantor Induk", shift: "Pagi", status: "Hadir", jamMasuk: "07:45", jamKeluar: "-", keterangan: "-" }
   ];
 
   // Process attendance data for Bulanan
@@ -185,47 +242,6 @@ export default function AdminAttendance() {
     setFilteredAttendance(attendanceData);
   }, [attendanceData]);
 
-  const parseTime = (timeStr: string) => {
-    if (!timeStr) return 0;
-    let clean = timeStr.replace(/\./g, ':').trim().toUpperCase();
-    let isPM = clean.includes('PM');
-    let isAM = clean.includes('AM');
-    clean = clean.replace(/[A-Z]/g, '').trim();
-    const parts = clean.split(':');
-    let h = parseInt(parts[0] || '0', 10);
-    let m = parseInt(parts[1] || '0', 10);
-    if (isPM && h !== 12) h += 12;
-    if (isAM && h === 12) h = 0;
-    return h * 60 + m;
-  };
-
-  const getShiftForTime = (timeMinutes: number) => {
-    if (!shifts || shifts.length === 0) return { start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
-    
-    const activeShifts = shifts.filter(s => s.isActive);
-    let bestShift = activeShifts[0] || shifts[0];
-    let minDiff = Infinity;
-    
-    // Evaluate closest shift start time
-    activeShifts.forEach(shift => {
-      const startMinutes = parseTime(shift.startTime);
-      let diff = Math.abs(timeMinutes - startMinutes);
-      // handling wrapping across midnight: e.g. time is 01:00 AM, shift is 20:00. Difference is 5 hours.
-      // 01:00 is 60. 20:00 is 1200. diff is 1140. Or 1440 - 1140 = 300.
-      if (diff > 720) diff = 1440 - diff;
-      
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestShift = shift;
-      }
-    });
-
-    return {
-      start: parseTime(bestShift.startTime),
-      end: parseTime(bestShift.endTime),
-      tolerance: parseInt(absensiSettings.tolerance || '15')
-    };
-  };
 
   const {
     trenData,
@@ -578,12 +594,12 @@ export default function AdminAttendance() {
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
     // Add Headers
-    worksheet.getRow(3).values = ['Nama Karyawan', 'NIP', 'Kantor', 'Shift', 'Status', 'Jam Masuk', 'Jam Keluar'];
+    worksheet.getRow(3).values = ['Nama Karyawan', 'NIP', 'Kantor', 'Shift', 'Status', 'Jam Masuk', 'Jam Keluar', 'Keterangan'];
     worksheet.getRow(3).font = { bold: true };
 
     // Add Data
     displayHarian.forEach((row, index) => {
-      worksheet.addRow([row.nama, row.nip, row.kantor, row.shift, row.status, row.jamMasuk, row.jamKeluar]);
+      worksheet.addRow([row.nama, row.nip, row.kantor, row.shift, row.status, row.jamMasuk, row.jamKeluar, row.keterangan]);
     });
 
     // Add Signature
@@ -731,6 +747,7 @@ export default function AdminAttendance() {
                       <TableHead>Status</TableHead>
                       <TableHead>Jam Masuk</TableHead>
                       <TableHead>Jam Keluar</TableHead>
+                      <TableHead>Keterangan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -743,6 +760,7 @@ export default function AdminAttendance() {
                         <TableCell><span className={getStatusColor(row.status === "Hadir" ? "M" : row.status)}>{row.status}</span></TableCell>
                         <TableCell>{row.jamMasuk}</TableCell>
                         <TableCell>{row.jamKeluar}</TableCell>
+                        <TableCell>{row.keterangan}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -25,14 +25,14 @@ export default defineConfig(({mode}) => {
           theme_color: '#14b8a6',
           icons: [
             {
-              src: '/pwa-192x192.svg',
+              src: '/logo.png',
               sizes: '192x192',
-              type: 'image/svg+xml'
+              type: 'image/png'
             },
             {
-              src: '/pwa-512x512.svg',
+              src: '/logo.png',
               sizes: '512x512',
-              type: 'image/svg+xml'
+              type: 'image/png'
             }
           ]
         }
