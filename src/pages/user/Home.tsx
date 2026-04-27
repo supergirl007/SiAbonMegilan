@@ -352,198 +352,263 @@ export default function UserHome() {
     setIsLocating(true);
     setCanRefresh(false);
     setError(null);
+    setAddress('');
+    setLocation(null);
     
-    const timer = setTimeout(() => {
-        if (isLocating) {
-            setCanRefresh(true);
-        }
-    }, 10000);
+    // Enable refresh button after 5 seconds if still locating
+    const uiTimer = setTimeout(() => {
+      setCanRefresh(true);
+    }, 5000);
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          clearTimeout(timer);
-          const userLat = position.coords.latitude;
-          const userLng = position.coords.longitude;
-          const accuracy = position.coords.accuracy;
-          
-          console.log(`Detected Location: Lat ${userLat}, Lng ${userLng}, Accuracy ${accuracy}m`);
-          
-          setLocation({ lat: userLat, lng: userLng, accuracy });
-          
-          let detectedAddress = `${userLat.toFixed(5)}, ${userLng.toFixed(5)}`;
-          let addressLower = '';
-          let fullAddressLower = '';
-
-          try {
-            const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-            let googleMapsSuccess = false;
-
-            if (googleMapsApiKey) {
-              try {
-                const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLat},${userLng}&key=${googleMapsApiKey}`);
-                const data = await response.json();
-                if (data.results && data.results.length > 0) {
-                  // Find a result that explicitly contains administrative_area_level_4 (desa/kelurahan)
-                  const villageResult = data.results.find((r: any) => 
-                    r.address_components.some((c: any) => c.types.includes('administrative_area_level_4'))
-                  ) || data.results[0];
-                  
-                  const result = villageResult;
-                  fullAddressLower = result.formatted_address.toLowerCase();
-                  
-                  const components = result.address_components;
-                  const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
-                  
-                  const village = getComponent('administrative_area_level_4') || getComponent('locality') || getComponent('sublocality');
-                  const district = getComponent('administrative_area_level_3');
-                  const regency = getComponent('administrative_area_level_2');
-                  const state = getComponent('administrative_area_level_1');
-
-                  const parts = [];
-                  if (village) parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kel') ? village : `Desa ${village}`);
-                  if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kecamatan ${district}`);
-                  if (regency) parts.push(regency);
-                  if (state) parts.push(state);
-                  
-                  detectedAddress = parts.length > 0 ? parts.join(', ') : result.formatted_address;
-                  googleMapsSuccess = true;
-                } else {
-                  console.warn("Google Maps Geocoding failed, falling back to Nominatim", data);
-                }
-              } catch (gmapErr) {
-                console.warn("Google Maps Geocoding error, falling back to Nominatim", gmapErr);
-              }
-            }
-            
-            if (!googleMapsSuccess) {
-              const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}`);
-              if (!response.ok) throw new Error("Nominatim request failed");
-              const data = await response.json();
-              
-              if (data && data.display_name) {
-                detectedAddress = data.display_name;
-                fullAddressLower = data.display_name.toLowerCase();
-                
-                if (data.address) {
-                  const parts = [];
-                  // Remove road data to focus on regional area
-                  const village = data.address.village || data.address.hamlet || data.address.suburb || data.address.town;
-                  const district = data.address.district || data.address.city_district;
-                  const regency = data.address.county || data.address.city || data.address.region;
-                  const state = data.address.state;
-
-                  if (village) {
-                    parts.push(village.toLowerCase().startsWith('desa') || village.toLowerCase().startsWith('kel') ? village : `Desa ${village}`);
-                  }
-                  if (district) {
-                    parts.push(district.toLowerCase().startsWith('kec') ? district : `Kecamatan ${district}`);
-                  }
-                  if (regency) {
-                    parts.push(regency.toLowerCase().startsWith('kab') || regency.toLowerCase().startsWith('kota') ? regency : `Kabupaten ${regency}`);
-                  }
-                  if (state) {
-                    parts.push(state);
-                  }
-                  
-                  if (parts.length > 0) {
-                    detectedAddress = parts.join(', ');
-                  }
-                }
-              }
-            }
-            addressLower = detectedAddress.toLowerCase();
-          } catch (err) {
-            console.error('Geocoding error:', err);
-            // Don't set error state here, we still have coordinates to check
-          }
-          
-          setAddress(detectedAddress);
-          
-          const officeAddress = user?.office?.toLowerCase() || '';
-          const officeAddress2 = user?.office2?.toLowerCase() || '';
-          const locationNameLower = detectedAddress.toLowerCase();
-          
-          let withinRange = false;
-          let closestDistance = Infinity;
-          let activeRadius = 100;
-
-          // 1. Cek berdasarkan kecocokan nama alamat (Name-based Approval)
-          // Jika lokasi terdeteksi (alamat dari geocoding) mengandung nama kantor, izinkan terlepas dari jarak
-          if (
-            (officeAddress && (locationNameLower.includes(officeAddress) || officeAddress.includes(locationNameLower))) ||
-            (officeAddress2 && (locationNameLower.includes(officeAddress2) || officeAddress2.includes(locationNameLower)))
-          ) {
-            withinRange = true;
-          }
-
-          // 2. Cek berdasarkan jarak koordinat ke lokasi (Coordinate-based Approval)
-          // Hanya jika pendekatan nama (Name-based) gagal
-          if (!withinRange) {
-            withinRange = locations.some(loc => {
-              if (!loc.coordinates) return false;
-              
-              // Hanya cek lokasi yang namanya sesuai dengan office atau office2 user
-              const locNameLower = (loc.desa || loc.name || '').toLowerCase();
-              const isUserLocation = 
-                (officeAddress && (locNameLower.includes(officeAddress) || officeAddress.includes(locNameLower))) || 
-                (officeAddress2 && (locNameLower.includes(officeAddress2) || officeAddress2.includes(locNameLower)));
-              
-              if (!isUserLocation) return false;
-
-              const [lat, lng] = loc.coordinates.split(',').map(Number);
-              if (isNaN(lat) || isNaN(lng)) return false;
-              const distance = getDistance(userLat, userLng, lat, lng);
-              
-              if (distance < closestDistance) {
-                closestDistance = distance;
-                activeRadius = loc.radius || 100;
-              }
-              
-              return distance <= (loc.radius || 100);
-            });
-          }
-
-          // Check if within range of main office (Kantor Induk)
-          if (!withinRange && settings?.generalSettings?.mainLocation) {
-            const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
-            if (!isNaN(mainLat) && !isNaN(mainLng)) {
-              const distanceToMain = getDistance(userLat, userLng, mainLat, mainLng);
-              if (distanceToMain < closestDistance) {
-                closestDistance = distanceToMain;
-                activeRadius = 100;
-              }
-              if (distanceToMain <= 100) {
-                withinRange = true;
-              }
-            }
-          }
-
-          setIsWithinRange(withinRange);
-          if (!withinRange) {
-              if (closestDistance !== Infinity) {
-                setError(`Berada di luar jangkauan radius (Jarak: ${Math.round(closestDistance)}m, Radius diizinkan: ${activeRadius}m). Akurasi GPS Anda: ${Math.round(accuracy)}m.`);
-              } else {
-                setError('Lokasi kerja tidak ditemukan di sistem atau pengaturan koordinat tidak valid.');
-              }
-          }
-          setIsLocating(false);
-        },
-        (err) => {
-          clearTimeout(timer);
-          console.error("Geolocation error:", err);
-          setError(`Gagal mendapatkan lokasi (${err.message}). Pastikan GPS aktif dan izin diberikan.`);
-          setIsLocating(false);
-          setCanRefresh(true);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    } else {
-      clearTimeout(timer);
+    if (!navigator.geolocation) {
+      clearTimeout(uiTimer);
       setError('Geolocation tidak didukung oleh browser ini.');
       setIsLocating(false);
       setCanRefresh(true);
+      return;
     }
+
+    let watchId: number | null = null;
+    let fallbackTimeout: NodeJS.Timeout;
+    let bestPos: GeolocationPosition | null = null;
+    let hasProcessed = false;
+
+    const processPosition = async (position: GeolocationPosition) => {
+      if (hasProcessed) return;
+      hasProcessed = true;
+      
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      clearTimeout(fallbackTimeout);
+      clearTimeout(uiTimer);
+
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      
+      console.log(`Detected Location: Lat ${userLat}, Lng ${userLng}, Accuracy ${accuracy}m`);
+      
+      setLocation({ lat: userLat, lng: userLng, accuracy });
+      
+      let detectedAddress = `${userLat.toFixed(5)}, ${userLng.toFixed(5)}`;
+      let fullAddressLower = '';
+
+      try {
+        const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        let googleMapsSuccess = false;
+
+        if (googleMapsApiKey) {
+          try {
+            const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${userLat},${userLng}&key=${googleMapsApiKey}`);
+            const data = await response.json();
+            if (data.results && data.results.length > 0) {
+              const result = data.results[0];
+              fullAddressLower = result.formatted_address.toLowerCase();
+              
+              if (data.plus_code && data.plus_code.compound_code) {
+                detectedAddress = data.plus_code.compound_code;
+              } else {
+                const components = result.address_components;
+                const getComponent = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
+                
+                const village = getComponent('administrative_area_level_4') || getComponent('locality') || getComponent('sublocality');
+                const district = getComponent('administrative_area_level_3');
+                const regency = getComponent('administrative_area_level_2');
+                const state = getComponent('administrative_area_level_1');
+                const postal = getComponent('postal_code');
+                const country = getComponent('country');
+
+                const parts = [];
+                if (village) parts.push(village);
+                if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+                if (regency) parts.push(regency);
+                if (state) parts.push(state);
+                if (postal) parts.push(postal);
+                if (country) parts.push(country);
+                
+                detectedAddress = parts.length > 0 ? parts.join(', ') : result.formatted_address;
+              }
+              googleMapsSuccess = true;
+            } else {
+              console.warn("Google Maps Geocoding failed, falling back to Nominatim", data);
+            }
+          } catch (gmapErr) {
+            console.warn("Google Maps Geocoding error, falling back to Nominatim", gmapErr);
+          }
+        }
+        
+        if (!googleMapsSuccess) {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=14&addressdetails=1`);
+          if (!response.ok) throw new Error("Nominatim request failed");
+          const data = await response.json();
+          
+          if (data && data.address) {
+            const parts = [];
+            
+            // At zoom=14, we usually get village, county, state, country.
+            // Dibe / Dibee handling - occasionally OSM has spelling differences.
+            const village = data.address.village || data.address.town || data.address.city || data.address.municipality || data.address.hamlet || data.address.suburb;
+            const district = data.address.district || data.address.city_district; // might not be present at zoom 14, but just in case
+            const regency = data.address.county || data.address.region;
+            const state = data.address.state;
+            const postcode = data.address.postcode;
+            const country = data.address.country;
+
+            if (village) parts.push(village);
+            if (district) parts.push(district.toLowerCase().startsWith('kec') ? district : `Kec. ${district}`);
+            if (regency) parts.push(regency);
+            if (state) parts.push(state);
+            if (postcode) parts.push(postcode);
+            if (country) parts.push(country);
+            
+            if (parts.length > 0) {
+              detectedAddress = parts.join(', ');
+            } else {
+              detectedAddress = data.display_name || detectedAddress;
+            }
+            detectedAddress = detectedAddress.replace(/\bDibe\b/g, 'Dibee');
+            fullAddressLower = detectedAddress.toLowerCase();
+          } else if (data && data.display_name) {
+            detectedAddress = data.display_name;
+            fullAddressLower = data.display_name.toLowerCase();
+          }
+        }
+      } catch (err) {
+        console.error('Geocoding error:', err);
+      }
+      
+      setAddress(detectedAddress);
+      
+      const officeAddress = user?.office?.toLowerCase() || '';
+      const officeAddress2 = user?.office2?.toLowerCase() || '';
+      const locationNameLower = detectedAddress.toLowerCase();
+      
+      let withinRange = false;
+      let closestDistance = Infinity;
+      let activeRadius = 100;
+
+      // 1. Cek berdasarkan kecocokan nama alamat (Name-based Approval)
+      // Jika lokasi terdeteksi (alamat dari geocoding) mengandung nama kantor, izinkan terlepas dari jarak
+      const isNameMatch = (office: string, locName: string) => {
+        if (!office) return false;
+        
+        // Handle common variations
+        const normalize = (str: string) => str.replace(/dibee/g, 'dibe');
+        const normOffice = normalize(office);
+        const normLocName = normalize(locName);
+
+        if (normLocName.includes(normOffice) || normOffice.includes(normLocName)) return true;
+        
+        // Check by significant words to handle cases like "Desa Dibee" vs "Dibe, Kabupaten Lamongan"
+        const ignoreWords = ['desa', 'kecamatan', 'kabupaten', 'provinsi', 'jawa', 'timur', 'barat', 'tengah', 'kota', 'jalan', 'jl', 'raya'];
+        const words = normOffice.split(/[\s,.-]+/).filter(w => w.length > 3 && !ignoreWords.includes(w));
+        for (const word of words) {
+          if (normLocName.includes(word)) return true;
+        }
+        return false;
+      };
+
+      if (isNameMatch(officeAddress, locationNameLower) || isNameMatch(officeAddress2, locationNameLower)) {
+        withinRange = true;
+      }
+
+      // 2. Cek berdasarkan jarak koordinat ke lokasi (Coordinate-based Approval)
+      // Hanya jika pendekatan nama (Name-based) gagal
+      if (!withinRange) {
+        withinRange = locations.some(loc => {
+          if (!loc.coordinates) return false;
+          
+          // Hanya cek lokasi yang namanya sesuai dengan office atau office2 user
+          const locNameLower = (loc.desa || loc.name || '').toLowerCase();
+          const isUserLocation = isNameMatch(officeAddress, locNameLower) || isNameMatch(officeAddress2, locNameLower);
+          
+          if (!isUserLocation) return false;
+
+          const [lat, lng] = loc.coordinates.split(',').map(Number);
+          if (isNaN(lat) || isNaN(lng)) return false;
+          const distance = getDistance(userLat, userLng, lat, lng);
+          
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            activeRadius = loc.radius || 100;
+          }
+          
+          return distance <= (loc.radius || 100);
+        });
+      }
+
+      // Check if within range of main office (Kantor Induk)
+      if (!withinRange && settings?.generalSettings?.mainLocation) {
+        const [mainLat, mainLng] = settings.generalSettings.mainLocation.split(',').map(Number);
+        if (!isNaN(mainLat) && !isNaN(mainLng)) {
+          const distanceToMain = getDistance(userLat, userLng, mainLat, mainLng);
+          if (distanceToMain < closestDistance) {
+            closestDistance = distanceToMain;
+            activeRadius = 100;
+          }
+          if (distanceToMain <= 100) {
+            withinRange = true;
+          }
+        }
+      }
+
+      setIsWithinRange(withinRange);
+      if (!withinRange) {
+          if (closestDistance !== Infinity) {
+            setError(`Berada di luar jangkauan radius (Jarak: ${Math.round(closestDistance)}m, Radius diizinkan: ${activeRadius}m). Akurasi GPS Anda: ${Math.round(accuracy)}m.`);
+          } else {
+            setError('Lokasi kerja tidak ditemukan di sistem atau pengaturan koordinat tidak valid.');
+          }
+      }
+      setIsLocating(false);
+      setCanRefresh(true);
+    };
+
+    const options = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        if (!bestPos || position.coords.accuracy < bestPos.coords.accuracy) {
+          bestPos = position;
+        }
+        // If accuracy is good enough (< 100 meters), process immediately
+        if (position.coords.accuracy <= 100) {
+          processPosition(position);
+        }
+      },
+      (err) => {
+        if (!hasProcessed) {
+          // If we have a fallback position even with an error, use it instead of failing
+          if (bestPos) {
+            processPosition(bestPos);
+          } else {
+             hasProcessed = true;
+             if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+             clearTimeout(fallbackTimeout);
+             clearTimeout(uiTimer);
+             setError(`Gagal mendapatkan lokasi (${err.message}). Pastikan GPS aktif dan izin diberikan.`);
+             setIsLocating(false);
+             setCanRefresh(true);
+          }
+        }
+      },
+      options
+    );
+
+    // Fallback: after 10 seconds, if no high-accuracy location is found, use the best available
+    fallbackTimeout = setTimeout(() => {
+      if (!hasProcessed) {
+        if (bestPos) {
+          processPosition(bestPos);
+        } else {
+          hasProcessed = true;
+          if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+          clearTimeout(uiTimer);
+          setError('Waktu pencarian lokasi terlalu lama. Akurasi belum memadai atau GPS terganggu. Silahkan refresh dan pastikan GPS Anda kuat.');
+          setIsLocating(false);
+          setCanRefresh(true);
+        }
+      }
+    }, 12000);
   };
 
   useEffect(() => {
