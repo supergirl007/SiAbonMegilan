@@ -283,9 +283,13 @@ export default function AdminLayout() {
               <DropdownMenu>
                 <DropdownMenuTrigger className="relative h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
-                      {user.name?.charAt(0) || 'A'}
-                    </AvatarFallback>
+                    {user.photoUrl ? (
+                      <img src={user.photoUrl} alt="Profile" className="object-cover h-full w-full" />
+                    ) : (
+                      <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
+                        {user.name?.charAt(0) || 'A'}
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end">

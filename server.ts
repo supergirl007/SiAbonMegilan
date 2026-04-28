@@ -130,7 +130,7 @@ async function startServer() {
         if (cache['employees'] && Date.now() - cache['employees'].timestamp < CACHE_DURATION) {
           return res.json(cache['employees'].data);
         }
-        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password']);
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']);
         if (sheet) {
           const rows = await sheet.getRows();
           const employees = rows.map(row => ({
@@ -143,7 +143,9 @@ async function startServer() {
             gender: row.get('gender'),
             cluster: row.get('cluster'),
             unit: row.get('unit'),
-            password: row.get('password')
+            password: row.get('password'),
+            photoUrl: row.get('photoUrl'),
+            photoUploadCount: row.get('photoUploadCount') ? parseInt(row.get('photoUploadCount'), 10) : 0
           }));
           cache['employees'] = { data: employees, timestamp: Date.now() };
           return res.json(employees);
@@ -160,7 +162,7 @@ async function startServer() {
     
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password']);
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']);
         if (sheet) {
           await sheet.addRow({
             ...employee,
@@ -186,7 +188,7 @@ async function startServer() {
 
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password']);
+        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']);
         if (sheet) {
           // Flatten data and add rows
           const rows = employeesData.map(emp => ({
@@ -226,6 +228,67 @@ async function startServer() {
       db.employees = db.employees.filter(e => e.id !== id);
     }
     res.json({ success: true, message: 'Karyawan berhasil dihapus' });
+  });
+
+  app.post('/api/employees/photo', async (req, res) => {
+    const { nip, photoUrl } = req.body;
+    
+    if (!nip || !photoUrl) {
+      return res.status(400).json({ success: false, message: 'Data tidak lengkap' });
+    }
+
+    if (doc) {
+      try {
+        const sheet = await getSheet('Employees');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const empRow = rows.find(r => String(r.get('nip')) === String(nip));
+          
+          if (empRow) {
+            const currentCount = empRow.get('photoUploadCount') ? parseInt(empRow.get('photoUploadCount'), 10) : 0;
+            if (currentCount >= 5) {
+              return res.status(400).json({ success: false, message: 'Batas unggah foto telah mencapai maksimal (5 kali).' });
+            }
+            
+            empRow.set('photoUrl', photoUrl);
+            empRow.set('photoUploadCount', String(currentCount + 1));
+            await empRow.save();
+            delete cache['employees'];
+            
+            return res.json({ 
+              success: true, 
+              message: `Foto berhasil disimpan. Sisa kesempatan: ${4 - currentCount} kali.`, 
+              photoUrl, 
+              photoUploadCount: currentCount + 1 
+            });
+          } else {
+            return res.status(404).json({ success: false, message: 'Karyawan tidak ditemukan' });
+          }
+        }
+      } catch (error) {
+        console.error('Error updating profile photo:', error);
+        return res.status(500).json({ success: false, message: 'Terjadi kesalahan sistem saat menyimpan foto.' });
+      }
+    }
+    
+    // For mock DB
+    const emp = db.employees.find((e: any) => e.nip === nip) as any;
+    if (emp) {
+      const currentCount = emp.photoUploadCount || 0;
+      if (currentCount >= 5) {
+         return res.status(400).json({ success: false, message: 'Batas unggah foto telah mencapai maksimal (5 kali).' });
+      }
+      emp.photoUrl = photoUrl;
+      emp.photoUploadCount = currentCount + 1;
+      return res.json({ 
+        success: true, 
+        message: `Foto berhasil disimpan. Sisa kesempatan: ${4 - currentCount} kali.`, 
+        photoUrl, 
+        photoUploadCount: currentCount + 1 
+      });
+    }
+    
+    res.status(404).json({ success: false, message: 'Karyawan tidak ditemukan' });
   });
 
   // --- Admins API ---
@@ -341,8 +404,10 @@ async function startServer() {
       try {
         // Check Admins first
         const adminSheet = await getSheet('Admins');
+        console.log(`adminSheet exists: ${!!adminSheet}`);
         if (adminSheet) {
           const rows = await adminSheet.getRows();
+          console.log(`Admins rows count: ${rows.length}`);
           const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password && String(r.get('isActive')).trim().toLowerCase() === 'true');
           if (row) {
             let access = [];
@@ -364,8 +429,13 @@ async function startServer() {
         // If not admin, check Users
         if (!user) {
           const userSheet = await getSheet('Users');
+          console.log(`userSheet exists: ${!!userSheet}`);
           if (userSheet) {
             const rows = await userSheet.getRows();
+            console.log(`Users rows count: ${rows.length}`);
+            rows.forEach(r => {
+              console.log(`User row NIP: '${r.get('nip')}' PWD: '${r.get('password')}'`);
+            });
             const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password);
             if (row) {
               user = { id: row.get('id'), nip: String(row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };

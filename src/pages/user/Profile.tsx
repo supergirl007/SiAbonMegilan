@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { Camera } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -95,6 +96,103 @@ export default function UserProfile() {
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handlePhotoClick = () => {
+    if (employeeData?.photoUploadCount >= 5) {
+      toast.error('Batas unggah foto telah mencapai maksimal (5 kali).');
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Harap pilih file gambar');
+      return;
+    }
+
+    if (employeeData?.photoUploadCount >= 5) {
+      toast.error('Batas unggah foto telah mencapai maksimal (5 kali).');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Compress image
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      await new Promise((resolve) => (reader.onload = resolve));
+      
+      const img = new Image();
+      img.src = reader.result as string;
+      await new Promise((resolve) => (img.onload = resolve));
+
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 400;
+      const MAX_HEIGHT = 400;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
+      const response = await fetch('/api/employees/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nip: user.nip, photoUrl: compressedBase64 })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(data.message);
+        
+        // Update local state
+        setEmployeeData({
+           ...employeeData, 
+           photoUrl: data.photoUrl, 
+           photoUploadCount: data.photoUploadCount 
+        });
+
+        // Update user state and broadcast change across tabs/components
+        const updatedUser = { ...user, photoUrl: data.photoUrl };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('storage'));
+        
+      } else {
+        toast.error(data.message || 'Gagal menyimpan foto');
+      }
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      toast.error('Terjadi kesalahan saat mengunggah foto');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="p-4 space-y-6">
       <div className="mt-4">
@@ -102,11 +200,36 @@ export default function UserProfile() {
       </div>
 
       <div className="flex flex-col items-center space-y-4 mt-8">
-        <Avatar className="h-24 w-24 border-4 border-slate-200 dark:border-slate-800">
-          <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 text-2xl">
-            {user.name?.charAt(0) || 'U'}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-24 w-24 border-4 border-slate-200 dark:border-slate-800">
+            {employeeData?.photoUrl || user.photoUrl ? (
+              <img src={employeeData?.photoUrl || user.photoUrl} alt="Profile" className="object-cover h-full w-full" />
+            ) : (
+              <AvatarFallback className="bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 text-2xl">
+                {user.name?.charAt(0) || 'U'}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          <button 
+            type="button"
+            onClick={handlePhotoClick}
+            disabled={isUploading}
+            className="absolute bottom-0 right-0 rounded-full bg-emerald-600 p-2 text-white shadow-sm hover:bg-emerald-700 transition"
+          >
+            {isUploading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Camera className="h-4 w-4" />
+            )}
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handlePhotoChange} 
+            accept="image/*" 
+            className="hidden" 
+          />
+        </div>
         <div className="text-center">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">{user.name || 'Nama Pegawai'}</h2>
           <p className="text-emerald-600 dark:text-emerald-400 font-medium">{user.nip || 'NIP Pegawai'}</p>
