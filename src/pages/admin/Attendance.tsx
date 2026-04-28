@@ -415,27 +415,62 @@ export default function AdminAttendance() {
   }, [dates, filteredAttendance, employees]);
 
   // State for Hari Libur
-  const [holidays, setHolidays] = useState<{id: string, date: string, name: string}[]>([
-    { id: "1", date: `${today.getFullYear()}-01-01`, name: "Tahun Baru Masehi" },
-    { id: "2", date: `${today.getFullYear()}-08-17`, name: "Hari Kemerdekaan RI" }
-  ]);
+  const [holidays, setHolidays] = useState<{id: string, date: string, name: string}[]>([]);
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const response = await fetch('/api/holidays');
+        if (response.ok) {
+          const data = await response.json();
+          setHolidays(data.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        }
+      } catch (error) {
+        console.error('Failed to fetch holidays:', error);
+      }
+    };
+    fetchHolidays();
+  }, []);
 
   const [isAddHolidayOpen, setIsAddHolidayOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [newHolidayDate, setNewHolidayDate] = useState("");
   const [newHolidayName, setNewHolidayName] = useState("");
 
-  const handleAddHoliday = () => {
+  const handleAddHoliday = async () => {
     if (newHolidayDate && newHolidayName) {
-      setHolidays([...holidays, { id: Date.now().toString(), date: newHolidayDate, name: newHolidayName }].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      setNewHolidayDate("");
-      setNewHolidayName("");
-      setIsAddHolidayOpen(false);
+      const newHoliday = { date: newHolidayDate, name: newHolidayName };
+      try {
+        const response = await fetch('/api/holidays', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newHoliday)
+        });
+        if (response.ok) {
+          const refreshRes = await fetch('/api/holidays');
+          if (refreshRes.ok) {
+              const data = await refreshRes.json();
+              setHolidays(data.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+          }
+          setNewHolidayDate("");
+          setNewHolidayName("");
+          setIsAddHolidayOpen(false);
+        }
+      } catch (error) {
+        console.error('Error saving holiday:', error);
+      }
     }
   };
 
-  const handleDeleteHoliday = (id: string) => {
-    setHolidays(holidays.filter(h => h.id !== id));
+  const handleDeleteHoliday = async (id: string) => {
+    try {
+      const response = await fetch(`/api/holidays/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setHolidays(holidays.filter(h => h.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting holiday:', error);
+    }
   };
 
   const handleDownloadTemplate = () => {
@@ -707,7 +742,7 @@ export default function AdminAttendance() {
       </div>
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="bg-white p-1 rounded-lg border shadow-sm flex-wrap h-auto">
+        <TabsList className="hidden">
           <TabsTrigger value="harian">Harian</TabsTrigger>
           <TabsTrigger value="bulanan">Bulanan</TabsTrigger>
           <TabsTrigger value="analisa">Analisa Data</TabsTrigger>

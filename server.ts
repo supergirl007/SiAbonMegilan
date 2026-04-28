@@ -1165,6 +1165,76 @@ async function startServer() {
     res.json({ success: true, message: 'Pengumuman dihapus' });
   });
 
+  // --- Holidays API ---
+  app.get('/api/holidays', async (req, res) => {
+    if (doc) {
+      try {
+        if (cache['holidays'] && Date.now() - cache['holidays'].timestamp < CACHE_DURATION) {
+          return res.json(cache['holidays'].data);
+        }
+        const sheet = await getOrCreateSheet('Holidays', ['id', 'date', 'name']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const items = rows.map(row => ({
+            id: row.get('id'),
+            date: row.get('date'),
+            name: row.get('name')
+          }));
+          cache['holidays'] = { data: items, timestamp: Date.now() };
+          return res.json(items);
+        }
+      } catch (error) {
+        console.error('Error fetching from spreadsheet:', error);
+      }
+    }
+    res.json([]);
+  });
+
+  app.post('/api/holidays', async (req, res) => {
+    const item = req.body;
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Holidays', ['id', 'date', 'name']);
+        if (sheet) {
+          await sheet.addRow({
+            id: item.id || Date.now().toString(),
+            date: item.date,
+            name: item.name
+          });
+          delete cache['holidays'];
+          return res.json({ success: true, message: 'Added successfully' });
+        }
+      } catch (error) {
+        console.error('Error adding to spreadsheet:', error);
+        return res.status(500).json({ success: false, message: 'Failed to add item' });
+      }
+    }
+    res.json({ success: false, message: 'No connection' });
+  });
+
+  app.delete('/api/holidays/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Holidays');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => r.get('id') === id);
+          if (rowToDelete) {
+            await rowToDelete.delete();
+            delete cache['holidays'];
+            return res.json({ success: true });
+          } else {
+            return res.status(404).json({ success: false });
+          }
+        }
+      } catch (error) {
+        return res.status(500).json({ success: false });
+      }
+    }
+    res.json({ success: false });
+  });
+
   // --- Settings API ---
   app.get('/api/settings', async (req, res) => {
     if (doc) {
