@@ -77,31 +77,12 @@ export default function Login() {
     let deviceId = localStorage.getItem('deviceId');
     if (deviceId) return deviceId;
 
-    // Generate a relatively stable persistent ID based on browser features to survive cache wipes
-    // We strip version numbers from the user agent to avoid invalidating the device ID on browser updates
-    const stableUserAgent = navigator.userAgent.replace(/(\d+[\.\d]*)/g, '');
-    const components = [
-      stableUserAgent,
-      navigator.language,
-      screen.width + 'x' + screen.height,
-      screen.colorDepth,
-      navigator.hardwareConcurrency || 'unknown',
-      new Date().getTimezoneOffset()
-    ];
-    
-    const fingerprintString = components.join('|');
-    try {
-      const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprintString));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      deviceId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
-    } catch (e) {
-      let hash = 0;
-      for (let i = 0; i < fingerprintString.length; i++) {
-        const char = fingerprintString.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      deviceId = Math.abs(hash).toString(16).padStart(16, '0');
+    // Generate a simple random ID and store it in localStorage.
+    // If the user clears their browser cache, this ID is lost and they will need their device binding reset.
+    if (window.crypto && window.crypto.randomUUID) {
+      deviceId = window.crypto.randomUUID();
+    } else {
+      deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     }
 
     localStorage.setItem('deviceId', deviceId);

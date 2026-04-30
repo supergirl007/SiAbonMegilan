@@ -458,12 +458,12 @@ async function startServer() {
               const rows = await deviceSheet.getRows();
               const existingDeviceRow = rows.find(r => r.get('deviceId') === deviceId);
               if (existingDeviceRow && existingDeviceRow.get('nip') !== nip) {
-                return res.status(403).json({ success: false, message: 'Perangkat ini sudah digunakan oleh user yg terdaftar, silahkan gunakan perangkat yang lain.' });
+                return res.status(403).json({ success: false, message: 'Perangkat ini sudah digunakan oleh akun lain. Silahkan hubungi Admin untuk mereset perangkat jika fitur ini bermasalah.' });
               }
 
               const existingNipRow = rows.find(r => r.get('nip') === nip);
               if (existingNipRow && existingNipRow.get('deviceId') !== deviceId) {
-                return res.status(403).json({ success: false, message: 'Akun Anda sudah terdaftar di perangkat lain. Silahkan gunakan perangkat yang sudah didaftarkan.' });
+                return res.status(403).json({ success: false, message: 'Akun Anda sudah terdaftar di perangkat lain (atau cache browser telah dihapus). Silahkan hubungi Admin untuk mereset perangkat dari menu Karyawan.' });
               }
 
               if (!existingDeviceRow && !existingNipRow) {

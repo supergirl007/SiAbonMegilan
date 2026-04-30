@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import * as XLSX from "xlsx";
-import { Plus, Trash2, Upload, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, Upload, FileSpreadsheet, MonitorX } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminEmployees() {
@@ -232,6 +232,24 @@ export default function AdminEmployees() {
       }
     } catch (error) {
       console.error("Error deleting employee:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
+  };
+
+  const handleResetDevice = async (nip: string) => {
+    if (!confirm(`Apakah Anda yakin ingin mereset perangkat untuk NIP ${nip}?`)) return;
+    try {
+      const response = await fetch(`/api/device-bindings/${nip}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(data.message || "Perangkat berhasil direset");
+      } else {
+        toast.error(data.message || "Gagal mereset perangkat");
+      }
+    } catch (error) {
+      console.error("Error resetting device:", error);
       toast.error("Terjadi kesalahan jaringan");
     }
   };
@@ -821,9 +839,19 @@ export default function AdminEmployees() {
                           <TableCell>{emp.office2 || "-"}</TableCell>
                           <TableCell>{emp.email}</TableCell>
                           <TableCell className="text-right">
+                            <Button
+                              variant="ghost" 
+                              size="icon" 
+                              title="Reset Perangkat"
+                              className="text-amber-500 hover:text-amber-700 hover:bg-amber-50 mr-1"
+                              onClick={() => handleResetDevice(emp.nip)}
+                            >
+                              <MonitorX className="h-4 w-4" />
+                            </Button>
                             <Button 
                               variant="ghost" 
                               size="icon" 
+                              title="Hapus Karyawan"
                               className="text-red-500 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleDeleteEmployee(emp.id)}
                             >
