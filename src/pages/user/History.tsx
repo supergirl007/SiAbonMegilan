@@ -28,11 +28,20 @@ export default function UserHistory() {
   }, [user.nip]);
 
   const selectedDateString = date ? format(date, 'yyyy-MM-dd') : '';
-  const dayAttendance = attendanceData.filter(a => a.date === selectedDateString);
+  const dayAttendance = attendanceData.filter(a => a.date === selectedDateString || (typeof a.location === 'object' && a.location !== null && a.location.endDate && new Date(a.date) <= date! && new Date(a.location.endDate) >= date!));
   
-  const jamMasuk = dayAttendance.find(a => a.type === 'in')?.time || '-';
-  const jamKeluar = dayAttendance.find(a => a.type === 'out')?.time || '-';
-  const status = dayAttendance.length > 0 ? dayAttendance[0].status : 'Belum Absen';
+  const inRecord = dayAttendance.find(a => a.type === 'in');
+  const outRecord = dayAttendance.find(a => a.type === 'out');
+  const leaveRecord = dayAttendance.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
+
+  const jamMasuk = inRecord?.time || '-';
+  const jamKeluar = outRecord?.time || '-';
+  const status = leaveRecord ? (leaveRecord.type === 'Cuti' ? 'Cuti Tahunan' : leaveRecord.type === 'dinas_luar' ? 'Dinas Luar' : leaveRecord.type) : (dayAttendance.length > 0 ? dayAttendance[0].status : 'Belum Absen');
+
+  let leaveReason = null;
+  if (leaveRecord) {
+    leaveReason = typeof leaveRecord.location === 'object' && leaveRecord.location !== null ? leaveRecord.location.reason : leaveRecord.location;
+  }
 
   return (
     <div className="p-4 space-y-6">
@@ -61,20 +70,30 @@ export default function UserHistory() {
           <CardTitle className="text-lg">Detail Tanggal: {date?.toLocaleDateString('id-ID')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-slate-400">Jam Masuk</span>
-            <span className="font-medium text-emerald-400">{jamMasuk}</span>
-          </div>
-          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-            <span className="text-slate-400">Jam Keluar</span>
-            <span className="font-medium text-blue-400">{jamKeluar}</span>
-          </div>
-          <div className="flex justify-between items-center">
+          {!leaveRecord && (
+            <>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span className="text-slate-400">Jam Masuk</span>
+                <span className="font-medium text-emerald-400">{jamMasuk}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span className="text-slate-400">Jam Keluar</span>
+                <span className="font-medium text-blue-400">{jamKeluar}</span>
+              </div>
+            </>
+          )}
+          <div className="flex justify-between items-center pb-2">
             <span className="text-slate-400">Status</span>
-            <span className={`font-medium px-2 py-1 rounded ${status === 'Belum Absen' ? 'text-slate-400 bg-slate-800' : 'text-emerald-500 bg-emerald-500/10'}`}>
-              {status}
+            <span className={`font-medium px-2 py-1 capitalize rounded ${status === 'Belum Absen' ? 'text-slate-400 bg-slate-800' : 'text-emerald-500 bg-emerald-500/10'}`}>
+              {status} {leaveRecord && leaveRecord.status === 'pending' ? '(Menunggu)' : leaveRecord && leaveRecord.status === 'Ditolak' ? '(Ditolak)' : ''}
             </span>
           </div>
+          {leaveRecord && leaveReason && leaveReason !== 'undefined' && (
+            <div className="flex justify-between items-center mt-2 border-t border-slate-800 pt-2">
+              <span className="text-slate-400">Keterangan</span>
+              <span className="font-medium text-emerald-400 max-w-[200px] text-right truncate" title={leaveReason}>{leaveReason}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -404,10 +404,8 @@ async function startServer() {
       try {
         // Check Admins first
         const adminSheet = await getSheet('Admins');
-        console.log(`adminSheet exists: ${!!adminSheet}`);
         if (adminSheet) {
           const rows = await adminSheet.getRows();
-          console.log(`Admins rows count: ${rows.length}`);
           const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password && String(r.get('isActive')).trim().toLowerCase() === 'true');
           if (row) {
             let access = [];
@@ -429,13 +427,8 @@ async function startServer() {
         // If not admin, check Users
         if (!user) {
           const userSheet = await getSheet('Users');
-          console.log(`userSheet exists: ${!!userSheet}`);
           if (userSheet) {
             const rows = await userSheet.getRows();
-            console.log(`Users rows count: ${rows.length}`);
-            rows.forEach(r => {
-              console.log(`User row NIP: '${r.get('nip')}' PWD: '${r.get('password')}'`);
-            });
             const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password);
             if (row) {
               user = { id: row.get('id'), nip: String(row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
@@ -484,7 +477,6 @@ async function startServer() {
       }
       res.json({ success: true, user });
     } else {
-      console.log('Login failed: User not found or incorrect password');
       res.status(401).json({ success: false, message: 'NIP atau Password salah' });
     }
   });

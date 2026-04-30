@@ -187,9 +187,14 @@ export default function AdminDashboard() {
                   <li key={i} className="flex justify-between items-center text-sm text-slate-700 bg-slate-50 p-2 rounded-lg border">
                     <div>
                       <span className="font-medium">{leave.name}</span>
-                      <span className="block text-xs text-slate-500 hover:text-slate-700 cursor-help" title={leave.location || "Tanpa alasan"}>
-                        {leave.type === "Cuti" ? "Cuti Tahunan" : leave.type === "izin" ? "Izin" : leave.type === "sakit" ? "Sakit" : leave.type} - {leave.date}
+                      <span className="block text-xs text-slate-500 hover:text-slate-700 cursor-help" title={typeof leave.location === 'object' && leave.location !== null ? leave.location.reason : (leave.location || "Tanpa alasan")}>
+                        {leave.type === "Cuti" ? "Cuti Tahunan" : leave.type === "izin" ? "Izin" : leave.type === "sakit" ? "Sakit" : leave.type} - {leave.date} {(typeof leave.location === 'object' && leave.location !== null && leave.location.endDate && leave.location.endDate !== leave.date) ? `s/d ${leave.location.endDate}` : ""}
                       </span>
+                      {leave.photoUrl && leave.photoUrl !== 'Image too large to save in spreadsheet' && (
+                        <a href={leave.photoUrl} target="_blank" rel="noreferrer" className="block text-xs text-blue-500 hover:underline mt-1">
+                          Lihat Lampiran
+                        </a>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs px-2" onClick={() => handleApprove(leave.id, leave.type, 'approve')}>Setujui</Button>

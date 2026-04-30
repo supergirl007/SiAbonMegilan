@@ -40,6 +40,7 @@ export default function UserHome() {
   const [isTambahJaga, setIsTambahJaga] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedFriendNip, setSelectedFriendNip] = useState<string>('');
+  const [replacingFriendNip, setReplacingFriendNip] = useState<string | null>(localStorage.getItem('replacingFriendNip'));
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -82,7 +83,22 @@ export default function UserHome() {
           const data = await attRes.json();
           const userData = JSON.parse(localStorage.getItem('user') || '{}');
           const today = format(new Date(), 'yyyy-MM-dd');
-          const userAtt = data.filter((a: any) => a.nip === userData.nip && a.date === today);
+          
+          let nipToCheck = userData.nip;
+          const currentReplacingNip = localStorage.getItem('replacingFriendNip');
+
+          if (currentReplacingNip) {
+            const friendAtt = data.filter((a: any) => a.nip === currentReplacingNip && a.date === today);
+            const friendOut = friendAtt.find((a: any) => a.type === 'out');
+            if (friendOut) {
+              localStorage.removeItem('replacingFriendNip');
+              setReplacingFriendNip(null);
+            } else {
+              nipToCheck = currentReplacingNip;
+            }
+          }
+
+          const userAtt = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
           
           const inRecord = userAtt.find((a: any) => a.type === 'in');
           const outRecord = userAtt.find((a: any) => a.type === 'out');
@@ -94,9 +110,14 @@ export default function UserHome() {
           if (inRecord) {
             setHasCheckedIn(true);
             setCheckInTime(inRecord.time);
+          } else {
+            setHasCheckedIn(false);
+            setCheckInTime(null);
           }
           if (outRecord) {
             setHasCheckedOut(true);
+          } else {
+            setHasCheckedOut(false);
           }
         }
       } catch (err) {
@@ -147,10 +168,20 @@ export default function UserHome() {
         }
 
         if (targetShift) {
-          setShiftEndTime(targetShift.endTime);
-          
           const now = new Date();
-          const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
+          let adjustedEndTime = targetShift.endTime;
+          // Custom logic for Jumat (Friday = 5) and Sabtu (Saturday = 6) on shift Pagi
+          if (targetShift?.name?.toLowerCase().includes('pagi')) {
+            if (now.getDay() === 5) {
+              adjustedEndTime = "10:50";
+            } else if (now.getDay() === 6) {
+              adjustedEndTime = "12:30";
+            }
+          }
+
+          setShiftEndTime(adjustedEndTime);
+          
+          const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
           const [startHour] = targetShift.startTime.split(':').map(Number);
           
           let shiftEnd = new Date();
@@ -165,7 +196,13 @@ export default function UserHome() {
             }
           }
           
-          const minCheckOut = new Date(shiftEnd.getTime() - 10 * 60000); // 10 mins before
+          let minCheckOut = new Date(shiftEnd.getTime() - 10 * 60000); // 10 mins before default
+          
+          // If Friday/Saturday Pagi, the adjustedEndTime IS the allowed checkout time
+          if (targetShift?.name?.toLowerCase().includes('pagi') && (now.getDay() === 5 || now.getDay() === 6)) {
+             minCheckOut = new Date(shiftEnd.getTime()); // Exact time (10:50 or 12:30)
+          }
+
           const maxCheckOut = new Date(shiftEnd.getTime() + 2 * 3600000); // 2 hours after
           
           if (now >= minCheckOut && now <= maxCheckOut) {
@@ -317,7 +354,16 @@ export default function UserHome() {
         if (!targetShift) return;
 
         const now = new Date();
-        const [endHour, endMinute] = targetShift.endTime.split(':').map(Number);
+        let adjustedEndTime = targetShift.endTime;
+        if (targetShift?.name?.toLowerCase().includes('pagi')) {
+          if (now.getDay() === 5) {
+            adjustedEndTime = "10:50";
+          } else if (now.getDay() === 6) {
+            adjustedEndTime = "12:30";
+          }
+        }
+
+        const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
         const [startHour] = targetShift.startTime.split(':').map(Number);
         
         let shiftEnd = new Date();
@@ -680,6 +726,13 @@ export default function UserHome() {
         // User checking in for friend
         submitType = 'in';
       }
+    } else if (replacingFriendNip) {
+      const friend = employees.find(e => e.nip === replacingFriendNip);
+      if (friend) {
+        submitNip = friend.nip;
+        submitName = friend.name;
+        submitType = 'out';
+      }
     }
 
     setIsAbsenting(true);
@@ -694,7 +747,7 @@ export default function UserHome() {
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           type: submitType,
           location: { lat: location.lat, lng: location.lng, address: address },
-          status: isTambahJaga ? 'Hadir (Ganti Jaga)' : 'Hadir',
+          status: (isTambahJaga || replacingFriendNip) ? 'Hadir (Ganti Jaga)' : 'Hadir',
           photoUrl: compressedImageSrc,
           shift: nextShift?.name || 'Reguler'
         }),
@@ -706,9 +759,17 @@ export default function UserHome() {
       }
       alert('Absensi berhasil dan terkirim ke Database Kepegawaian');
       
-      if (isTambahJaga) {
+      let nextReplacingNip = replacingFriendNip;
+      if (isTambahJaga && selectedFriendNip) {
         setIsTambahJaga(false);
+        localStorage.setItem('replacingFriendNip', selectedFriendNip);
+        setReplacingFriendNip(selectedFriendNip);
+        nextReplacingNip = selectedFriendNip;
         setSelectedFriendNip('');
+      } else if (replacingFriendNip && submitType === 'out') {
+        localStorage.removeItem('replacingFriendNip');
+        setReplacingFriendNip(null);
+        nextReplacingNip = null;
       }
 
       // Re-fetch attendance data to update UI instead of redirecting
@@ -717,17 +778,28 @@ export default function UserHome() {
         const data = await attRes.json();
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         const today = format(new Date(), 'yyyy-MM-dd');
-        const userAtt = data.filter((a: any) => a.nip === userData.nip && a.date === today);
         
+        let nipToCheck = userData.nip;
+        if (nextReplacingNip) {
+          nipToCheck = nextReplacingNip;
+        }
+        
+        const userAtt = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
         const inRecord = userAtt.find((a: any) => a.type === 'in');
         const outRecord = userAtt.find((a: any) => a.type === 'out');
         
         if (inRecord) {
           setHasCheckedIn(true);
           setCheckInTime(inRecord.time);
+        } else {
+          setHasCheckedIn(false);
+          setCheckInTime(null);
         }
+        
         if (outRecord) {
           setHasCheckedOut(true);
+        } else {
+          setHasCheckedOut(false);
         }
       }
     } catch (err: any) {
@@ -756,12 +828,12 @@ export default function UserHome() {
           <CardHeader>
             <CardTitle className="text-teal-600 dark:text-teal-400 text-2xl font-bold flex items-center gap-2">
               <Camera className="w-6 h-6" />
-              {isTambahJaga ? 'Tambah Jaga Teman' : hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
+              {isTambahJaga ? 'Tambah Jaga Teman' : replacingFriendNip ? (hasCheckedIn ? (canCheckOut ? 'Absen Pulang (Ganti Jaga)' : 'Status Absensi (Ganti Jaga)') : 'Absen Masuk (Ganti Jaga)') : hasCheckedIn ? (canCheckOut ? 'Absen Pulang' : 'Status Absensi') : 'Absen Masuk'}
             </CardTitle>
             {user && (
               <div className="text-slate-600 dark:text-slate-300 text-sm mt-2 space-y-1">
-                <p><strong>Nama:</strong> {user.name}</p>
-                <p><strong>NIP:</strong> {user.nip}</p>
+                <p><strong>Nama:</strong> {replacingFriendNip ? (employees.find(e => e.nip === replacingFriendNip)?.name || user.name) + ' (Digantikan)' : user.name}</p>
+                <p><strong>NIP:</strong> {replacingFriendNip || user.nip}</p>
                 <p><strong>Kantor 1:</strong> {user.office}</p>
                 {user.office2 && <p><strong>Kantor 2:</strong> {user.office2}</p>}
               </div>
@@ -790,7 +862,6 @@ export default function UserHome() {
                     </div>
                   </AlertDescription>
                 </Alert>
-                <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">Tambah Jaga (Gantikan Teman)</Button>
               </>
             ) : hasCheckedOut && !isTambahJaga ? (
               <>
@@ -800,7 +871,9 @@ export default function UserHome() {
                     Anda telah menyelesaikan absensi untuk hari ini.
                   </AlertDescription>
                 </Alert>
-                <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">Tambah Jaga (Gantikan Teman)</Button>
+                {!replacingFriendNip && (
+                  <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">Tambah Jaga (Gantikan Teman)</Button>
+                )}
               </>
             ) : (
               <>
@@ -882,8 +955,14 @@ export default function UserHome() {
                   disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip)}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
+                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
+                
+                {!isTambahJaga && !hasCheckedIn && !replacingFriendNip && (
+                  <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">
+                    Tambah Jaga (Gantikan Teman)
+                  </Button>
+                )}
               </>
             )}
           </CardContent>

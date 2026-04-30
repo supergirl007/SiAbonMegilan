@@ -137,7 +137,7 @@ export default function AdminAttendance() {
   // Process attendance data for Harian
   const processedHarian = attendanceData.filter(a => a.date === format(today, 'yyyy-MM-dd')).map(a => {
     const isIzin = ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status);
-    const locationVal = typeof a.location === 'object' && a.location !== null ? a.location.address || JSON.stringify(a.location) : a.location;
+    const locationVal = typeof a.location === 'object' && a.location !== null ? a.location.reason || a.location.address || JSON.stringify(a.location) : a.location;
     
     let shiftDisplay = "-";
     if (a.time && a.time !== "-") {
@@ -1203,8 +1203,19 @@ export default function AdminAttendance() {
                           <TableCell className="font-medium">{req.name}</TableCell>
                           <TableCell>{req.nip}</TableCell>
                           <TableCell className="capitalize">{req.type.replace('_', ' ')}</TableCell>
-                          <TableCell>{req.date}</TableCell>
-                          <TableCell className="max-w-xs truncate">{req.location}</TableCell>
+                          <TableCell>
+                            {req.date} {(typeof req.location === 'object' && req.location !== null && req.location.endDate && req.location.endDate !== req.date) ? `s/d ${req.location.endDate}` : ""}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            <div className="truncate" title={typeof req.location === 'object' && req.location !== null ? req.location.reason : req.location}>
+                              {typeof req.location === 'object' && req.location !== null ? req.location.reason : req.location}
+                            </div>
+                            {req.photoUrl && req.photoUrl !== 'Image too large to save in spreadsheet' && (
+                              <div className="mt-1">
+                                <a href={req.photoUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">Lihat Lampiran</a>
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button 
