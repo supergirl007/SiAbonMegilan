@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
 import { Activity } from 'lucide-react';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 export default function Login() {
   const [view, setView] = useState<'login' | 'register' | 'forgot'>('login');
@@ -75,14 +76,19 @@ export default function Login() {
 
   const generateDeviceId = async () => {
     let deviceId = localStorage.getItem('deviceId');
-    if (deviceId) return deviceId;
+    if (deviceId && deviceId.length > 20) return deviceId;
 
-    // Generate a simple random ID and store it in localStorage.
-    // If the user clears their browser cache, this ID is lost and they will need their device binding reset.
-    if (window.crypto && window.crypto.randomUUID) {
-      deviceId = window.crypto.randomUUID();
-    } else {
-      deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    try {
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      deviceId = result.visitorId;
+    } catch (e) {
+      // Fallback
+      if (window.crypto && window.crypto.randomUUID) {
+        deviceId = window.crypto.randomUUID();
+      } else {
+        deviceId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      }
     }
 
     localStorage.setItem('deviceId', deviceId);
