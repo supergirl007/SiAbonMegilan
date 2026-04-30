@@ -107,6 +107,18 @@ export default function UserLeave() {
     setLoading(true);
 
     try {
+      // Check if already checked in on the requested start date
+      const attResponse = await fetch('/api/attendance');
+      if (attResponse.ok) {
+         const attData = await attResponse.json();
+         const hasCheckedInOnStartDate = attData.some((a: any) => a.nip === user?.nip && a.date === startDate && a.type === 'in');
+         if (hasCheckedInOnStartDate) {
+           toast.error('Anda sudah melakukan absen masuk pada tanggal tersebut, tidak bisa mengajukan izin.');
+           setLoading(false);
+           return;
+         }
+      }
+
       let lat = null;
       let lng = null;
       try {

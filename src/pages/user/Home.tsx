@@ -102,7 +102,7 @@ export default function UserHome() {
           
           const inRecord = userAtt.find((a: any) => a.type === 'in');
           const outRecord = userAtt.find((a: any) => a.type === 'out');
-          const leaveRecord = userAtt.find((a: any) => ['izin', 'sakit', 'Cuti'].includes(a.type));
+          const leaveRecord = userAtt.find((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
           
           if (leaveRecord) {
             setLeaveType(leaveRecord.type);
@@ -737,6 +737,35 @@ export default function UserHome() {
 
     setIsAbsenting(true);
     try {
+      // Validate attendance for duplicate or conflicting leave
+      const checkRes = await fetch('/api/attendance');
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        
+        if (submitType === 'in') {
+          const personAtt = checkData.filter((a: any) => a.nip === submitNip && a.date === todayStr);
+          const hasGotLeave = personAtt.find((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
+          const hasAlreadyIn = personAtt.find((a: any) => a.type === 'in');
+          
+          if (hasGotLeave && !isTambahJaga) {
+            alert('Anda sudah memiliki status Izin/Sakit/Cuti/Dinas Luar. Tidak dapat melakukan absen masuk.');
+            setIsAbsenting(false);
+            return;
+          } else if (hasGotLeave && isTambahJaga) {
+            alert('Pengguna yang dipilih sudah memiliki status Izin/Sakit/Cuti/Dinas Luar. Tidak dapat melakukan absen masuk untuknya.');
+            setIsAbsenting(false);
+            return;
+          }
+          
+          if (hasAlreadyIn && isTambahJaga) {
+            alert('Pengguna yang dipilih sudah memiliki data Absen Masuk untuk hari ini.');
+            setIsAbsenting(false);
+            return;
+          }
+        }
+      }
+
       const response = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -847,6 +876,7 @@ export default function UserHome() {
                   {leaveType === 'sakit' && "Semoga lekas sembuh dan diberikan kesehatan seperti sediakala. Aamiin"}
                   {leaveType === 'izin' && "Semoga segala urusannya dimudahkan"}
                   {leaveType === 'Cuti' && "Semoga hari - hari cuti anda bermanfaat"}
+                  {leaveType === 'dinas_luar' && "Selamat menjalankan dinas luar, tetap semangat dan jaga kesehatan!"}
                 </AlertDescription>
               </Alert>
             ) : hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga ? (
@@ -951,11 +981,11 @@ export default function UserHome() {
                 </div>
 
                 <Button
-                  onClick={() => isWithinRange ? handleAbsen() : navigate('/user/leave')}
-                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip)}
+                  onClick={() => (!isWithinRange && !hasCheckedIn) ? navigate('/user/leave') : handleAbsen()}
+                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip) || (hasCheckedIn && !canCheckOut) || (hasCheckedIn && !isWithinRange)}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Ajukan Izin' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
+                  {isAbsenting ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
                 
                 {!isTambahJaga && !hasCheckedIn && !replacingFriendNip && (
