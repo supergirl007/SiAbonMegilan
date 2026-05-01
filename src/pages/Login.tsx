@@ -226,7 +226,7 @@ export default function Login() {
             )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 text-center">
-            {view === 'login' ? `Selamat Datang di Aplikasi ${appName}` : view === 'register' ? 'Buat Akun Baru' : 'Lupa Kata Sandi'}
+            {view === 'login' ? `Selamat Datang di Aplikasi Absensi ${appName}` : view === 'register' ? 'Buat Akun Baru' : 'Lupa Kata Sandi'}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-2">
             {view === 'login' ? 'Masuk untuk mengakses dasbor Anda' : view === 'register' ? 'Daftar untuk mulai menggunakan aplikasi' : 'Masukkan email untuk mereset kata sandi Anda'}
@@ -240,7 +240,7 @@ export default function Login() {
               <Input 
                 id="nip" 
                 type="text" 
-                placeholder="-Masukkan NIP/ NIK (jika belum punya NIP) -" 
+                placeholder="Masukkan NIP/ NIK(jika belum punya NIP)" 
                 value={nip}
                 onChange={(e) => setNip(e.target.value)}
                 required
@@ -322,7 +322,7 @@ export default function Login() {
               <Input 
                 id="regNip" 
                 type="text" 
-                placeholder="-Masukkan NIP / NIK (Jika belum memiliki NIP)-" 
+                placeholder="Masukkan NIP/ NIK(jika belum punya NIP)" 
                 value={regNip}
                 onChange={(e) => setRegNip(e.target.value)}
                 required
