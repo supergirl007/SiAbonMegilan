@@ -706,7 +706,7 @@ export default function AdminEmployees() {
                       <Label htmlFor="emp-nip">NIP</Label>
                       <Input 
                         id="emp-nip" 
-                        placeholder="Masukkan NIP" 
+                        placeholder="Masukkan NIP /NIK (jika belum punya NIP)" 
                         value={newEmpNip}
                         onChange={(e) => setNewEmpNip(e.target.value)}
                       />
@@ -888,7 +888,7 @@ export default function AdminEmployees() {
                       <Label htmlFor="loc-name">Nama Desa / Lokasi</Label>
                       <Input 
                         id="loc-name" 
-                        placeholder="Contoh: Desa Sukamaju" 
+                        placeholder="Contoh: Blawi" 
                         value={newLocName}
                         onChange={(e) => setNewLocName(e.target.value)}
                       />
@@ -897,7 +897,7 @@ export default function AdminEmployees() {
                       <Label htmlFor="loc-kecamatan">Kecamatan</Label>
                       <Input 
                         id="loc-kecamatan" 
-                        placeholder="Contoh: Kecamatan Sukamaju" 
+                        placeholder="Contoh: Karangbinangun" 
                         value={newLocKecamatan}
                         onChange={(e) => setNewLocKecamatan(e.target.value)}
                       />
