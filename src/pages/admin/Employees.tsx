@@ -43,13 +43,33 @@ export default function AdminEmployees() {
   const [newLocCoords, setNewLocCoords] = useState("");
 
   // State for Shifts
-  const [shifts, setShifts] = useState<{id: string, name: string, startTime: string, endTime: string, crossesMidnight: boolean, isActive: boolean}[]>([]);
+  const [shifts, setShifts] = useState<{
+    id: string, 
+    name: string, 
+    startTime: string, 
+    endTime: string, 
+    fridayEndTime?: string,
+    saturdayEndTime?: string,
+    checkInBeforeMinutes?: number,
+    checkInAfterMinutes?: number,
+    checkOutBeforeMinutes?: number,
+    checkOutAfterMinutes?: number,
+    crossesMidnight: boolean, 
+    isActive: boolean
+  }[]>([]);
   const [isAddShiftOpen, setIsAddShiftOpen] = useState(false);
   const [newShiftName, setNewShiftName] = useState("");
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
+  const [newShiftFridayEnd, setNewShiftFridayEnd] = useState("");
+  const [newShiftSaturdayEnd, setNewShiftSaturdayEnd] = useState("");
+  const [newShiftCheckInBefore, setNewShiftCheckInBefore] = useState(60);
+  const [newShiftCheckInAfter, setNewShiftCheckInAfter] = useState(15);
+  const [newShiftCheckOutBefore, setNewShiftCheckOutBefore] = useState(10);
+  const [newShiftCheckOutAfter, setNewShiftCheckOutAfter] = useState(120);
   const [newShiftCrossesMidnight, setNewShiftCrossesMidnight] = useState(false);
   const [newShiftIsActive, setNewShiftIsActive] = useState(true);
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
   // State for Admins
   const [admins, setAdmins] = useState<{id: string, name: string, nip: string, email: string, phone: string, group: string, isActive: boolean, access: string[]}[]>([]);
@@ -415,45 +435,82 @@ export default function AdminEmployees() {
 
   const handleAddShift = async () => {
     if (newShiftName && newShiftStart && newShiftEnd) {
-      const newShift = {
-        id: Date.now().toString(),
+      const shiftData = {
         name: newShiftName,
         startTime: newShiftStart,
         endTime: newShiftEnd,
+        fridayEndTime: newShiftFridayEnd,
+        saturdayEndTime: newShiftSaturdayEnd,
+        checkInBeforeMinutes: newShiftCheckInBefore,
+        checkInAfterMinutes: newShiftCheckInAfter,
+        checkOutBeforeMinutes: newShiftCheckOutBefore,
+        checkOutAfterMinutes: newShiftCheckOutAfter,
         crossesMidnight: newShiftCrossesMidnight,
         isActive: newShiftIsActive
       };
       
       try {
-        const response = await fetch('/api/shifts', {
-          method: 'POST',
+        const url = editingShiftId ? `/api/shifts/${editingShiftId}` : '/api/shifts';
+        const method = editingShiftId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+          method,
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(newShift),
+          body: JSON.stringify({ ...shiftData, id: editingShiftId || Date.now().toString() }),
         });
 
         if (response.ok) {
-          const updatedShifts = [...shifts, newShift];
-          setShifts(updatedShifts);
-          localStorage.setItem('shiftsData', JSON.stringify(updatedShifts));
-          toast.success("Shift berhasil ditambahkan");
-          setNewShiftName("");
-          setNewShiftStart("");
-          setNewShiftEnd("");
-          setNewShiftCrossesMidnight(false);
-          setNewShiftIsActive(true);
+          const fetchedRes = await fetch('/api/shifts');
+          if (fetchedRes.ok) {
+            const data = await fetchedRes.json();
+            setShifts(data);
+          }
+          toast.success(editingShiftId ? "Shift berhasil diperbarui" : "Shift berhasil ditambahkan");
+          resetShiftForm();
           setIsAddShiftOpen(false);
         } else {
-          toast.error("Gagal menambahkan shift ke server");
+          toast.error("Gagal menyimpan shift ke server");
         }
       } catch (error) {
-        console.error("Error adding shift:", error);
+        console.error("Error saving shift:", error);
         toast.error("Terjadi kesalahan jaringan");
       }
     } else {
       toast.error("Mohon lengkapi semua data shift");
     }
+  };
+
+  const resetShiftForm = () => {
+    setNewShiftName("");
+    setNewShiftStart("");
+    setNewShiftEnd("");
+    setNewShiftFridayEnd("");
+    setNewShiftSaturdayEnd("");
+    setNewShiftCheckInBefore(60);
+    setNewShiftCheckInAfter(15);
+    setNewShiftCheckOutBefore(10);
+    setNewShiftCheckOutAfter(120);
+    setNewShiftCrossesMidnight(false);
+    setNewShiftIsActive(true);
+    setEditingShiftId(null);
+  };
+
+  const handleEditShift = (shift: any) => {
+    setNewShiftName(shift.name);
+    setNewShiftStart(shift.startTime);
+    setNewShiftEnd(shift.endTime);
+    setNewShiftFridayEnd(shift.fridayEndTime || "");
+    setNewShiftSaturdayEnd(shift.saturdayEndTime || "");
+    setNewShiftCheckInBefore(shift.checkInBeforeMinutes || 60);
+    setNewShiftCheckInAfter(shift.checkInAfterMinutes || 15);
+    setNewShiftCheckOutBefore(shift.checkOutBeforeMinutes || 10);
+    setNewShiftCheckOutAfter(shift.checkOutAfterMinutes || 120);
+    setNewShiftCrossesMidnight(shift.crossesMidnight);
+    setNewShiftIsActive(shift.isActive);
+    setEditingShiftId(shift.id);
+    setIsAddShiftOpen(true);
   };
 
   const handleDeleteShift = async (id: string) => {
@@ -968,10 +1025,10 @@ export default function AdminEmployees() {
                     <Plus className="h-4 w-4" />
                     Tambah Shift
                   </Button>
-                } />
-                <DialogContent>
+                } onClick={resetShiftForm} />
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Tambah Shift Baru</DialogTitle>
+                    <DialogTitle>{editingShiftId ? 'Edit Shift' : 'Tambah Shift Baru'}</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
@@ -985,7 +1042,7 @@ export default function AdminEmployees() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="shift-start">Jam Awal</Label>
+                        <Label htmlFor="shift-start">Jam Awal (Senin-Kamis/Umum)</Label>
                         <Input 
                           id="shift-start" 
                           type="time"
@@ -994,7 +1051,7 @@ export default function AdminEmployees() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="shift-end">Jam Akhir</Label>
+                        <Label htmlFor="shift-end">Jam Akhir (Senin-Kamis/Umum)</Label>
                         <Input 
                           id="shift-end" 
                           type="time"
@@ -1003,7 +1060,57 @@ export default function AdminEmployees() {
                         />
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2 pt-2">
+
+                    <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="shift-friday-end" className="text-blue-600">Jam Akhir Hari Jumat (Opsional)</Label>
+                        <Input 
+                          id="shift-friday-end" 
+                          type="time"
+                          value={newShiftFridayEnd}
+                          onChange={(e) => setNewShiftFridayEnd(e.target.value)}
+                        />
+                        <p className="text-[10px] text-slate-500">Kosongkan jika sama dengan jam akhir umum.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="shift-saturday-end" className="text-orange-600">Jam Akhir Hari Sabtu (Opsional)</Label>
+                        <Input 
+                          id="shift-saturday-end" 
+                          type="time"
+                          value={newShiftSaturdayEnd}
+                          onChange={(e) => setNewShiftSaturdayEnd(e.target.value)}
+                        />
+                        <p className="text-[10px] text-slate-500">Kosongkan jika sama dengan jam akhir umum.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                      <div className="space-y-2">
+                        <Label>Toleransi Absen Masuk</Label>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" value={newShiftCheckInBefore} onChange={e => setNewShiftCheckInBefore(parseInt(e.target.value))} className="w-20" />
+                          <span className="text-xs text-slate-500">Menit sebelum</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" value={newShiftCheckInAfter} onChange={e => setNewShiftCheckInAfter(parseInt(e.target.value))} className="w-20" />
+                          <span className="text-xs text-slate-500">Menit sesudah</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Toleransi Absen Pulang</Label>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" value={newShiftCheckOutBefore} onChange={e => setNewShiftCheckOutBefore(parseInt(e.target.value))} className="w-20" />
+                          <span className="text-xs text-slate-500">Menit sebelum</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input type="number" value={newShiftCheckOutAfter} onChange={e => setNewShiftCheckOutAfter(parseInt(e.target.value))} className="w-20" />
+                          <span className="text-xs text-slate-500">Menit sesudah</span>
+                        </div>
+                        <p className="text-[10px] text-amber-600">Ulangi: Isi "Menit sesudah" minimal 250 jika ingin absen sampai jam 15:00 di hari Jumat/Sabtu.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2 border-t">
                       <Checkbox 
                         id="crosses-midnight" 
                         checked={newShiftCrossesMidnight}
@@ -1040,9 +1147,9 @@ export default function AdminEmployees() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Nama Shift</TableHead>
-                        <TableHead>Jam Awal</TableHead>
-                        <TableHead>Jam Akhir</TableHead>
-                        <TableHead>Melewati Hari</TableHead>
+                        <TableHead>Jam Kerja</TableHead>
+                        <TableHead>Jumat/Sabtu</TableHead>
+                        <TableHead>Toleransi</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
@@ -1051,26 +1158,45 @@ export default function AdminEmployees() {
                       {shifts.map((shift, index) => (
                         <TableRow key={`${shift.id}-${index}`}>
                           <TableCell className="font-medium">{shift.name}</TableCell>
-                          <TableCell>{shift.startTime}</TableCell>
-                          <TableCell>{shift.endTime}</TableCell>
-                          <TableCell>{shift.crossesMidnight ? "Ya" : "Tidak"}</TableCell>
+                          <TableCell>{shift.startTime} - {shift.endTime} {shift.crossesMidnight ? "(+1)" : ""}</TableCell>
+                          <TableCell>
+                            <div className="text-xs">
+                              {shift.fridayEndTime && <p>Jum: {shift.fridayEndTime}</p>}
+                              {shift.saturdayEndTime && <p>Sab: {shift.saturdayEndTime}</p>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-[10px]">
+                              In: -{shift.checkInBeforeMinutes}/+{shift.checkInAfterMinutes}m<br/>
+                              Out: -{shift.checkOutBeforeMinutes}/+{shift.checkOutAfterMinutes}m
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${shift.isActive ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}>
                               {shift.isActive ? 'Aktif' : 'Nonaktif'}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
+                          <TableCell className="text-right space-x-1">
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-8 px-2 text-xs"
                               onClick={() => handleToggleShiftStatus(shift.id)}
                             >
-                              {shift.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                              {shift.isActive ? 'Off' : 'On'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => handleEditShift(shift)}
+                            >
+                              Edit
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleDeleteShift(shift.id)}
                             >
                               <Trash2 className="h-4 w-4" />

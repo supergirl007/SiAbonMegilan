@@ -1043,7 +1043,7 @@ async function startServer() {
         if (cache['shifts'] && Date.now() - cache['shifts'].timestamp < CACHE_DURATION) {
           return res.json(cache['shifts'].data);
         }
-        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'crossesMidnight', 'isActive']);
+        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'fridayEndTime', 'saturdayEndTime', 'checkInBeforeMinutes', 'checkInAfterMinutes', 'checkOutBeforeMinutes', 'checkOutAfterMinutes', 'crossesMidnight', 'isActive']);
         if (sheet) {
           const rows = await sheet.getRows();
           const shifts = rows.map(row => ({
@@ -1051,6 +1051,12 @@ async function startServer() {
             name: row.get('name'),
             startTime: row.get('startTime'),
             endTime: row.get('endTime'),
+            fridayEndTime: row.get('fridayEndTime') || '',
+            saturdayEndTime: row.get('saturdayEndTime') || '',
+            checkInBeforeMinutes: parseInt(row.get('checkInBeforeMinutes') || '60'),
+            checkInAfterMinutes: parseInt(row.get('checkInAfterMinutes') || '15'),
+            checkOutBeforeMinutes: parseInt(row.get('checkOutBeforeMinutes') || '10'),
+            checkOutAfterMinutes: parseInt(row.get('checkOutAfterMinutes') || '120'),
             crossesMidnight: String(row.get('crossesMidnight')).toLowerCase() === 'true',
             isActive: String(row.get('isActive')).toLowerCase() === 'true'
           }));
@@ -1062,8 +1068,8 @@ async function startServer() {
       }
     }
     res.json([
-      { id: "1", name: "Pagi", startTime: "08:00", endTime: "16:00", crossesMidnight: false, isActive: true },
-      { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", crossesMidnight: true, isActive: true }
+      { id: "1", name: "Pagi", startTime: "08:00", endTime: "16:00", fridayEndTime: "10:50", saturdayEndTime: "12:30", checkInBeforeMinutes: 60, checkInAfterMinutes: 15, checkOutBeforeMinutes: 10, checkOutAfterMinutes: 120, crossesMidnight: false, isActive: true },
+      { id: "2", name: "Malam", startTime: "20:00", endTime: "04:00", fridayEndTime: "", saturdayEndTime: "", checkInBeforeMinutes: 60, checkInAfterMinutes: 15, checkOutBeforeMinutes: 10, checkOutAfterMinutes: 120, crossesMidnight: true, isActive: true }
     ]);
   });
 
@@ -1071,10 +1077,14 @@ async function startServer() {
     const shift = req.body;
     if (doc) {
       try {
-        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'crossesMidnight', 'isActive']);
+        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'fridayEndTime', 'saturdayEndTime', 'checkInBeforeMinutes', 'checkInAfterMinutes', 'checkOutBeforeMinutes', 'checkOutAfterMinutes', 'crossesMidnight', 'isActive']);
         if (sheet) {
           await sheet.addRow({
             ...shift,
+            checkInBeforeMinutes: (shift.checkInBeforeMinutes || 60).toString(),
+            checkInAfterMinutes: (shift.checkInAfterMinutes || 15).toString(),
+            checkOutBeforeMinutes: (shift.checkOutBeforeMinutes || 10).toString(),
+            checkOutAfterMinutes: (shift.checkOutAfterMinutes || 120).toString(),
             crossesMidnight: shift.crossesMidnight.toString(),
             isActive: shift.isActive.toString()
           });
@@ -1120,6 +1130,12 @@ async function startServer() {
             rowToUpdate.set('name', shift.name);
             rowToUpdate.set('startTime', shift.startTime);
             rowToUpdate.set('endTime', shift.endTime);
+            rowToUpdate.set('fridayEndTime', shift.fridayEndTime || '');
+            rowToUpdate.set('saturdayEndTime', shift.saturdayEndTime || '');
+            rowToUpdate.set('checkInBeforeMinutes', (shift.checkInBeforeMinutes || 60).toString());
+            rowToUpdate.set('checkInAfterMinutes', (shift.checkInAfterMinutes || 15).toString());
+            rowToUpdate.set('checkOutBeforeMinutes', (shift.checkOutBeforeMinutes || 10).toString());
+            rowToUpdate.set('checkOutAfterMinutes', (shift.checkOutAfterMinutes || 120).toString());
             rowToUpdate.set('crossesMidnight', shift.crossesMidnight.toString());
             rowToUpdate.set('isActive', shift.isActive.toString());
             await rowToUpdate.save();

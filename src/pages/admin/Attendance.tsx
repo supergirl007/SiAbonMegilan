@@ -126,11 +126,20 @@ export default function AdminAttendance() {
       }
     });
 
+    const now = new Date();
+    const day = now.getDay();
+    let endTimeStr = bestShift.endTime;
+    if (day === 5 && bestShift.fridayEndTime) {
+      endTimeStr = bestShift.fridayEndTime;
+    } else if (day === 6 && bestShift.saturdayEndTime) {
+      endTimeStr = bestShift.saturdayEndTime;
+    }
+
     return {
       name: bestShift.name,
       start: parseTime(bestShift.startTime),
-      end: parseTime(bestShift.endTime),
-      tolerance: parseInt(absensiSettings.tolerance || '15')
+      end: parseTime(endTimeStr),
+      tolerance: parseInt(bestShift.checkInAfterMinutes || absensiSettings.tolerance || '15')
     };
   };
 

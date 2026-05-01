@@ -170,13 +170,12 @@ export default function UserHome() {
         if (targetShift) {
           const now = new Date();
           let adjustedEndTime = targetShift.endTime;
-          // Custom logic for Jumat (Friday = 5) and Sabtu (Saturday = 6) on shift Pagi
-          if (targetShift?.name?.toLowerCase().includes('pagi')) {
-            if (now.getDay() === 5) {
-              adjustedEndTime = "10:50";
-            } else if (now.getDay() === 6) {
-              adjustedEndTime = "12:30";
-            }
+          
+          // Use dynamic Friday/Saturday end times if configured
+          if (now.getDay() === 5 && targetShift.fridayEndTime) {
+            adjustedEndTime = targetShift.fridayEndTime;
+          } else if (now.getDay() === 6 && targetShift.saturdayEndTime) {
+            adjustedEndTime = targetShift.saturdayEndTime;
           }
 
           setShiftEndTime(adjustedEndTime);
@@ -196,14 +195,16 @@ export default function UserHome() {
             }
           }
           
-          let minCheckOut = new Date(shiftEnd.getTime() - 10 * 60000); // 10 mins before default
-          
-          // If Friday/Saturday Pagi, the adjustedEndTime IS the allowed checkout time
-          if (targetShift?.name?.toLowerCase().includes('pagi') && (now.getDay() === 5 || now.getDay() === 6)) {
-             minCheckOut = new Date(shiftEnd.getTime()); // Exact time (10:50 or 12:30)
+          let beforeMinutes = parseInt(targetShift.checkOutBeforeMinutes || '10');
+          // If Friday/Saturday and special end time is set, use 0 minutes grace before (appear exactly at that time)
+          if ((now.getDay() === 5 && targetShift.fridayEndTime) || (now.getDay() === 6 && targetShift.saturdayEndTime)) {
+            beforeMinutes = 0;
           }
-
-          const maxCheckOut = new Date(shiftEnd.getTime() + 2 * 3600000); // 2 hours after
+          
+          const afterMinutes = parseInt(targetShift.checkOutAfterMinutes || '120');
+          
+          let minCheckOut = new Date(shiftEnd.getTime() - beforeMinutes * 60000); 
+          const maxCheckOut = new Date(shiftEnd.getTime() + afterMinutes * 60000); 
           
           if (now >= minCheckOut && now <= maxCheckOut) {
             setCanCheckOut(true);
@@ -290,8 +291,9 @@ export default function UserHome() {
             }
           }
 
-          // Izinkan absen masuk mulai 60 menit sebelum shift dimulai
-          const minCheckIn = new Date(upcomingShiftStart.getTime() - 60 * 60000); 
+          // Izinkan absen masuk mulai X menit sebelum shift dimulai
+          const beforeMinutes = parseInt(upcomingShift.checkInBeforeMinutes || '60');
+          const minCheckIn = new Date(upcomingShiftStart.getTime() - beforeMinutes * 60000); 
           const diffMs = minCheckIn.getTime() - now.getTime();
 
           if (diffMs > 0) {
@@ -355,12 +357,11 @@ export default function UserHome() {
 
         const now = new Date();
         let adjustedEndTime = targetShift.endTime;
-        if (targetShift?.name?.toLowerCase().includes('pagi')) {
-          if (now.getDay() === 5) {
-            adjustedEndTime = "10:50";
-          } else if (now.getDay() === 6) {
-            adjustedEndTime = "12:30";
-          }
+        
+        if (now.getDay() === 5 && targetShift.fridayEndTime) {
+          adjustedEndTime = targetShift.fridayEndTime;
+        } else if (now.getDay() === 6 && targetShift.saturdayEndTime) {
+          adjustedEndTime = targetShift.saturdayEndTime;
         }
 
         const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
