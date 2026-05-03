@@ -144,30 +144,82 @@ export default function AdminAttendance() {
   };
 
   // Process attendance data for Harian
-  const processedHarian = attendanceData.filter(a => a.date === format(today, 'yyyy-MM-dd')).map(a => {
-    const isIzin = ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status);
-    const locationVal = typeof a.location === 'object' && a.location !== null ? a.location.reason || a.location.address || JSON.stringify(a.location) : a.location;
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const harianRecords = attendanceData.filter(a => a.date === todayStr);
+
+  const groupedHarian = Object.values(harianRecords.reduce((acc: any, curr: any) => {
+    if (!acc[curr.nip]) {
+      acc[curr.nip] = [];
+    }
+    acc[curr.nip].push(curr);
+    return acc;
+  }, {}));
+
+  const processedHarian = groupedHarian.map((records: any) => {
+    const inRecord = records.find((r: any) => r.type === 'in');
+    let outRecord = records.find((r: any) => r.type === 'out');
+    const leaveRecord = records.find((r: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(r.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(r.status));
+
+    // Resolve orphaned outRecord (if any) or missing outRecord (fetched from next day)
+    let nip = inRecord?.nip || outRecord?.nip || leaveRecord?.nip;
     
-    let shiftDisplay = "-";
-    if (a.time && a.time !== "-") {
-      const t = parseTime(a.time);
+    if (!inRecord && outRecord) {
+        const prevDay = new Date(today.getTime() - 86400000);
+        const prevDayStr = [
+             prevDay.getFullYear(),
+             String(prevDay.getMonth() + 1).padStart(2, '0'),
+             String(prevDay.getDate()).padStart(2, '0')
+        ].join('-');
+        
+        const prevDayIn = attendanceData.find(a => a.date === prevDayStr && a.type === 'in' && a.nip === nip);
+        if (prevDayIn) return null; // Ignore this record for today, as it belongs to yesterday's shift
+    }
+    
+    if (inRecord && !outRecord) {
+        const nextDay = new Date(today.getTime() + 86400000);
+        const nextDayStr = [
+             nextDay.getFullYear(),
+             String(nextDay.getMonth() + 1).padStart(2, '0'),
+             String(nextDay.getDate()).padStart(2, '0')
+        ].join('-');
+        const nextDayOut = attendanceData.find(a => a.date === nextDayStr && a.type === 'out' && a.nip === nip);
+        if (nextDayOut) outRecord = nextDayOut;
+    }
+
+    const baseRecord = inRecord || outRecord || leaveRecord || records[0];
+    
+    const isIzin = ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(baseRecord.status);
+    const locationVal = typeof baseRecord.location === 'object' && baseRecord.location !== null ? baseRecord.location.reason || baseRecord.location.address || JSON.stringify(baseRecord.location) : baseRecord.location;
+    
+    let shiftDisplay = baseRecord.shift || "-";
+    if (inRecord && inRecord.time && inRecord.time !== "-") {
+      const t = parseTime(inRecord.time);
       const shift = getShiftForTime(t);
       if (shift && shift.name) {
         shiftDisplay = shift.name;
       }
     }
 
+    let displayStatus = inRecord?.status || outRecord?.status || leaveRecord?.status || baseRecord.status;
+    if (outRecord && outRecord.status === 'Hadir (Pulang Cepat)') {
+        displayStatus = outRecord.status;
+    } else if (outRecord && outRecord.status === 'Hadir (Ganti Jaga)') {
+        displayStatus = outRecord.status;
+    } else if (inRecord && inRecord.status === 'Hadir (Ganti Jaga)') {
+        displayStatus = inRecord.status;
+    }
+
     return {
-      nama: a.name,
-      nip: a.nip,
+      nama: baseRecord.name,
+      nip: baseRecord.nip,
       kantor: isIzin ? "-" : locationVal,
       shift: shiftDisplay,
-      status: a.status,
-      jamMasuk: a.type === 'in' ? a.time : "-",
-      jamKeluar: a.type === 'out' ? a.time : "-",
+      status: displayStatus,
+      jamMasuk: inRecord ? inRecord.time : "-",
+      jamKeluar: outRecord ? outRecord.time : "-",
       keterangan: isIzin ? locationVal : "-"
     };
-  });
+  }).filter(Boolean);
 
   // Fallback to mock if empty for demonstration
   const displayHarian = processedHarian.length > 0 ? processedHarian : [
@@ -202,7 +254,7 @@ export default function AdminAttendance() {
       let statusInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
       
       const inRecord = recordsForDate.find(a => a.type === 'in');
-      const outRecord = recordsForDate.find(a => a.type === 'out');
+      let outRecord = recordsForDate.find(a => a.type === 'out');
       const leaveRecord = recordsForDate.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(a.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status));
 
       if (leaveRecord) {
@@ -214,6 +266,22 @@ export default function AdminAttendance() {
         else statusInfo.code = leaveRecord.status?.[0] || 'M';
       } else if (inRecord) {
         statusInfo.code = 'M';
+        
+        // Handle cross-midnight out record from the next day if missing today
+        if (!outRecord) {
+          const nextDay = new Date(new Date(date).getTime() + 86400000);
+          const nextDayStr = [
+                 nextDay.getFullYear(),
+                 String(nextDay.getMonth() + 1).padStart(2, '0'),
+                 String(nextDay.getDate()).padStart(2, '0')
+          ].join('-');
+          const nextDayOut = empAttendance.find(a => a.date === nextDayStr && a.type === 'out');
+          const nextDayIn = empAttendance.find(a => a.date === nextDayStr && a.type === 'in');
+          if (nextDayOut && !nextDayIn) {
+            outRecord = nextDayOut;
+          }
+        }
+
         if (outRecord) {
           // Calculate duration between inRecord.time and outRecord.time
           let inParts = inRecord.time.split(/[:.]/);
@@ -233,7 +301,21 @@ export default function AdminAttendance() {
           statusInfo.bgColor = 'bg-yellow-200 dark:bg-yellow-900/50';
         }
       } else if (outRecord) {
-         statusInfo.code = 'M';
+         // Check if this outRecord belongs to yesterday's inRecord.
+         // If it does, we shouldn't mark it as 'M' today.
+         const prevDay = new Date(new Date(date).getTime() - 86400000);
+         const prevDayStr = [
+             prevDay.getFullYear(),
+             String(prevDay.getMonth() + 1).padStart(2, '0'),
+             String(prevDay.getDate()).padStart(2, '0')
+         ].join('-');
+         
+         const prevDayIn = empAttendance.find(a => a.date === prevDayStr && a.type === 'in');
+         if (prevDayIn) {
+             statusInfo.code = '-'; // Belongs to yesterday's shift
+         } else {
+             statusInfo.code = 'M';
+         }
       }
       
       attendanceMap[date] = statusInfo;
