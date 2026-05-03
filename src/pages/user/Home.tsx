@@ -98,11 +98,29 @@ export default function UserHome() {
             }
           }
 
-          const userAtt = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
+          const userAttToday = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
+          const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+          const userAttYesterday = data.filter((a: any) => a.nip === nipToCheck && a.date === yesterday);
           
-          const inRecord = userAtt.find((a: any) => a.type === 'in');
-          const outRecord = userAtt.find((a: any) => a.type === 'out');
-          const leaveRecord = userAtt.find((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
+          let inRecord = userAttToday.find((a: any) => a.type === 'in');
+          let outRecord = userAttToday.find((a: any) => a.type === 'out');
+          const leaveRecord = userAttToday.find((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
+          
+          let checkInDateStr = today;
+
+          // If no 'in' record today, check if yesterday has an 'in' record but NO 'out' record
+          if (!inRecord) {
+            const yesterdayIn = userAttYesterday.find((a: any) => a.type === 'in');
+            const yesterdayOut = userAttYesterday.find((a: any) => a.type === 'out');
+            if (yesterdayIn && !yesterdayOut) {
+               // Possibly user is on a night shift
+               inRecord = yesterdayIn;
+               checkInDateStr = yesterday;
+            }
+          }
+          
+          // Store the checkin date so we know if it was yesterday
+          localStorage.setItem('lastCheckInDate', checkInDateStr);
           
           if (leaveRecord) {
             setLeaveType(leaveRecord.type);
@@ -674,7 +692,7 @@ export default function UserHome() {
     return R * c * 1000; // Distance in meters
   };
 
-  const handleAbsen = async () => {
+  const handleAbsen = async (isEarlyCheckout = false) => {
     if (!webcamRef.current || !location) return;
 
     const imageSrc = webcamRef.current.getScreenshot();
@@ -773,11 +791,11 @@ export default function UserHome() {
         body: JSON.stringify({
           nip: submitNip,
           name: submitName,
-          date: format(new Date(), 'yyyy-MM-dd'),
+          date: submitType === 'out' ? (localStorage.getItem('lastCheckInDate') || format(new Date(), 'yyyy-MM-dd')) : format(new Date(), 'yyyy-MM-dd'),
           time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           type: submitType,
           location: { lat: location.lat, lng: location.lng, address: address },
-          status: (isTambahJaga || replacingFriendNip) ? 'Hadir (Ganti Jaga)' : 'Hadir',
+          status: (isTambahJaga || replacingFriendNip) ? 'Hadir (Ganti Jaga)' : (isEarlyCheckout ? 'Hadir (Pulang Cepat)' : 'Hadir'),
           photoUrl: compressedImageSrc,
           shift: nextShift?.name || 'Reguler'
         }),
@@ -982,12 +1000,27 @@ export default function UserHome() {
                 </div>
 
                 <Button
-                  onClick={() => (!isWithinRange && !hasCheckedIn) ? navigate('/user/leave') : handleAbsen()}
+                  onClick={() => (!isWithinRange && !hasCheckedIn) ? navigate('/user/leave') : handleAbsen(false)}
                   disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip) || (hasCheckedIn && !canCheckOut) || (hasCheckedIn && !isWithinRange)}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
                   {isAbsenting ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
+
+                {hasCheckedIn && !canCheckOut && isWithinRange && !isTambahJaga && !replacingFriendNip && (
+                  <Button
+                    onClick={() => {
+                      if (window.confirm("Peringatan: Pulang Cepat akan mengurangi jam kerja efektif dalam satu bulan ini. Apakah Anda yakin ingin pulang cepat?")) {
+                        handleAbsen(true);
+                      }
+                    }}
+                    disabled={isAbsenting}
+                    variant="destructive"
+                    className="w-full mt-2 bg-orange-500 hover:bg-orange-600 font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(249,115,22,0.5)]"
+                  >
+                    {isAbsenting ? 'Memproses...' : 'Pulang Cepat'}
+                  </Button>
+                )}
                 
                 {!isTambahJaga && !hasCheckedIn && !replacingFriendNip && (
                   <Button onClick={() => setIsTambahJaga(true)} className="w-full mt-4 border-teal-500 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30" variant="outline">

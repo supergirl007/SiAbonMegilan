@@ -195,24 +195,55 @@ export default function AdminAttendance() {
   const bulananData = employees.map(emp => {
     const empAttendance = attendanceData.filter(a => a.nip === emp.nip);
     const attendanceMap: any = {};
+    let totalHoursCount = 0;
+
     dates.forEach(date => {
-      const dayAtt = empAttendance.find(a => a.date === date);
-      let status = '-';
-      if (dayAtt) {
-        if (dayAtt.status === 'Hadir' || dayAtt.status?.includes('Hadir')) status = 'M';
-        else if (dayAtt.status === 'izin') status = 'I';
-        else if (dayAtt.status === 'Sakit' || dayAtt.type === 'sakit') status = 'S';
-        else if (dayAtt.status === 'Cuti') status = 'C';
-        else if (dayAtt.status === 'Dinas Luar') status = 'D';
-        else if (dayAtt.status === 'pending') status = 'P';
-        else status = dayAtt.status?.[0] || 'M';
+      const recordsForDate = empAttendance.filter(a => a.date === date);
+      let statusInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
+      
+      const inRecord = recordsForDate.find(a => a.type === 'in');
+      const outRecord = recordsForDate.find(a => a.type === 'out');
+      const leaveRecord = recordsForDate.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(a.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status));
+
+      if (leaveRecord) {
+        if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') statusInfo.code = 'I';
+        else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') statusInfo.code = 'S';
+        else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') statusInfo.code = 'C';
+        else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') statusInfo.code = 'D';
+        else if (leaveRecord.status === 'pending') statusInfo.code = 'P';
+        else statusInfo.code = leaveRecord.status?.[0] || 'M';
+      } else if (inRecord) {
+        statusInfo.code = 'M';
+        if (outRecord) {
+          // Calculate duration between inRecord.time and outRecord.time
+          let inParts = inRecord.time.split(/[:.]/);
+          let outParts = outRecord.time.split(/[:.]/);
+          if (inParts.length >= 2 && outParts.length >= 2) {
+             let inH = parseInt(inParts[0]), inM = parseInt(inParts[1]);
+             let outH = parseInt(outParts[0]), outM = parseInt(outParts[1]);
+             let durationH = outH - inH + (outM - inM) / 60;
+             if (durationH < 0) durationH += 24; // Cross midnight
+             statusInfo.hours = Number(durationH.toFixed(2));
+          }
+          statusInfo.onlyIn = false;
+        } else {
+          // Only 'in' record
+          statusInfo.hours = 6;
+          statusInfo.onlyIn = true;
+          statusInfo.bgColor = 'bg-yellow-200 dark:bg-yellow-900/50';
+        }
+      } else if (outRecord) {
+         statusInfo.code = 'M';
       }
-      attendanceMap[date] = status;
+      
+      attendanceMap[date] = statusInfo;
+      totalHoursCount += statusInfo.hours;
     });
+    
     return {
       nama: emp.name,
       nip: emp.nip,
-      totalHours: empAttendance.length * 8 + " jam", // Simplified
+      totalHours: Number(totalHoursCount.toFixed(2)) + " jam",
       attendance: attendanceMap
     };
   });
@@ -690,7 +721,14 @@ export default function AdminAttendance() {
     displayBulanan.forEach((emp) => {
       const rowData = [emp.nama, emp.nip, emp.totalHours];
       dates.forEach(date => {
-        rowData.push(emp.attendance[date as keyof typeof emp.attendance] || '-');
+        const attInfo = emp.attendance[date as keyof typeof emp.attendance];
+        if (typeof attInfo === 'string') {
+           rowData.push(attInfo || '-');
+        } else if (attInfo) {
+           rowData.push((attInfo as any).code || '-');
+        } else {
+           rowData.push('-');
+        }
       });
       const row = worksheet.addRow(rowData);
       
@@ -873,10 +911,17 @@ export default function AdminAttendance() {
                         <TableCell className="sticky left-[150px] bg-white z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{emp.nip}</TableCell>
                         <TableCell className="sticky left-[250px] bg-white z-10 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{emp.totalHours}</TableCell>
                         {dates.map(date => {
-                          const status = emp.attendance[date as keyof typeof emp.attendance] || '-';
+                          let attInfo = emp.attendance[date as keyof typeof emp.attendance];
+                          if (typeof attInfo === 'string') {
+                            attInfo = { code: attInfo, hours: 0, onlyIn: false, bgColor: '' };
+                          } else if (!attInfo) {
+                            attInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
+                          }
+                          const { code, bgColor, onlyIn } = attInfo;
+                          
                           return (
-                            <TableCell key={date} className="text-center px-2 border-r">
-                               <span className={getStatusColor(status)}>{status}</span>
+                            <TableCell key={date} className={`text-center px-2 border-r ${bgColor || ''} ${onlyIn ? 'bg-yellow-100 dark:bg-yellow-900/30' : ''}`}>
+                               <span className={getStatusColor(code)}>{code}</span>
                             </TableCell>
                           );
                         })}
