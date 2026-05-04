@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, Search, Plus, Upload, Trash2, Users, TrendingUp, Clock, CalendarDays, Award, AlertTriangle, Timer, Check, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from 'exceljs';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, BarChart, Bar, LabelList } from 'recharts';
 import { format } from 'date-fns';
 
 export default function AdminAttendance() {
@@ -395,19 +395,17 @@ export default function AdminAttendance() {
   // State for Analisa Data Filter
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [filteredAttendance, setFilteredAttendance] = useState<any[]>(attendanceData);
-
-  const handleApplyFilter = () => {
-    const filtered = attendanceData.filter(a => {
+  
+  const filteredAttendance = useMemo(() => {
+    return attendanceData.filter(a => {
       const date = new Date(a.date);
       return date.getMonth().toString() === selectedMonth && date.getFullYear().toString() === selectedYear;
     });
-    setFilteredAttendance(filtered);
-  };
+  }, [attendanceData, selectedMonth, selectedYear]);
 
-  useEffect(() => {
-    setFilteredAttendance(attendanceData);
-  }, [attendanceData]);
+  const handleApplyFilter = () => {
+    // Redundant now, handled by useMemo, but keeping it for button compatibility
+  };
 
 
   const {
@@ -446,19 +444,21 @@ export default function AdminAttendance() {
 
     // Performa Unit Kerja
     const unitMap: Record<string, { total: number, hadir: number }> = {};
+    const expectedWorkDays = dates.filter(d => new Date(d).getDay() !== 0).length; // Exclude Sundays for a more accurate total
+    
     employees.forEach(emp => {
-      const unit = typeof emp.location === 'object' && emp.location !== null ? emp.location.address || JSON.stringify(emp.location) : emp.location || 'Lainnya';
+      const unit = emp.unit || 'Lainnya';
       if (!unitMap[unit]) unitMap[unit] = { total: 0, hadir: 0 };
       
       const empAtt = filteredAttendance.filter(a => a.nip === emp.nip && a.type === 'in');
-      unitMap[unit].total += dates.length; // Assuming they should be present every day in the filtered range
+      unitMap[unit].total += expectedWorkDays;
       unitMap[unit].hadir += empAtt.length;
     });
 
     const performaUnitData = Object.keys(unitMap).map(unit => ({
       name: unit,
-      rate: unitMap[unit].total > 0 ? Math.round((unitMap[unit].hadir / unitMap[unit].total) * 100) : 0
-    })).sort((a, b) => b.rate - a.rate).slice(0, 6); // Top 6
+      rate: unitMap[unit].total > 0 ? Math.min(100, Math.round((unitMap[unit].hadir / unitMap[unit].total) * 100)) : 0
+    })).sort((a, b) => b.rate - a.rate).slice(0, 7); // Top 7
 
     // Distribusi Status Kehadiran (Group by Week)
     const weeks = [
@@ -1210,11 +1210,19 @@ export default function AdminAttendance() {
                     <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={performaUnitData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                          <defs>
+                            <linearGradient id="colorRate" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                              <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                           <XAxis type="number" domain={[0, 100]} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} width={80} />
-                          <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                          <Bar dataKey="rate" name="Tingkat Kehadiran (%)" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                          <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} width={90} />
+                          <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                          <Bar dataKey="rate" name="Tingkat Kehadiran (%)" fill="url(#colorRate)" radius={[0, 4, 4, 0]} barSize={24}>
+                            <LabelList dataKey="rate" position="right" fontSize={11} fill="#64748b" formatter={(value: number) => `${value}%`} />
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
