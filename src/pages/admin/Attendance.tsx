@@ -299,7 +299,10 @@ export default function AdminAttendance() {
         if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') statusInfo.code = 'I';
         else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') statusInfo.code = 'S';
         else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') statusInfo.code = 'C';
-        else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') statusInfo.code = 'D';
+        else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') {
+          statusInfo.code = 'D';
+          statusInfo.hours = 7;
+        }
         else if (leaveRecord.status === 'pending') statusInfo.code = 'P';
         else statusInfo.code = leaveRecord.status?.[0] || 'M';
       } else if (inRecord) {
