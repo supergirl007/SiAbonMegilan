@@ -28,6 +28,22 @@ export default function AdminAttendance() {
 
   const [absensiSettings, setAbsensiSettings] = useState<any>({});
   const [shifts, setShifts] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees');
+        if (response.ok) {
+          const data = await response.json();
+          setEmployees(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+      }
+    };
+    fetchEmployees();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -265,22 +281,6 @@ export default function AdminAttendance() {
   ];
 
   // Process attendance data for Bulanan
-  const [employees, setEmployees] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const response = await fetch('/api/employees');
-        if (response.ok) {
-          const data = await response.json();
-          setEmployees(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch employees:', error);
-      }
-    };
-    fetchEmployees();
-  }, []);
 
   const bulananData = employees.map(emp => {
     const empAttendance = attendanceData.filter(a => a.nip === emp.nip);
