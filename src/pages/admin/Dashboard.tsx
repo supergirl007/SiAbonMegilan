@@ -95,10 +95,26 @@ export default function AdminDashboard() {
           return h * 60 + m;
         };
 
-        const getShiftForTime = (timeMinutes: number) => {
+        const getShiftForTime = (timeMinutes: number, unit?: string) => {
           if (!shifts || shifts.length === 0) return { start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
-          const activeShifts = shifts.filter((s: any) => s.isActive);
-          let bestShift = activeShifts[0] || shifts[0];
+          const activeShiftsRaw = shifts.filter((s: any) => s.isActive);
+          const specificShifts = activeShiftsRaw.filter((s: any) => s.unit && s.unit === unit);
+          const generalShifts = activeShiftsRaw.filter((s: any) => !s.unit);
+          
+          const activeShifts = [
+              ...specificShifts,
+              ...generalShifts.filter((g: any) => {
+                 const gStart = parseTime(g.startTime);
+                 return !specificShifts.some((s: any) => {
+                     const sStart = parseTime(s.startTime);
+                     let diff = Math.abs(gStart - sStart);
+                     if (diff > 720) diff = 1440 - diff;
+                     return diff <= 240;
+                 });
+              })
+          ];
+          if (activeShifts.length === 0) return { start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
+          let bestShift = activeShifts[0];
           let minDiff = Infinity;
           activeShifts.forEach((shift: any) => {
             const startMinutes = parseTime(shift.startTime);
@@ -132,7 +148,8 @@ export default function AdminDashboard() {
         
         const lateToday = presentToday.filter((a: any) => {
           const t = parseTime(a.time);
-          const shift = getShiftForTime(t);
+          const empUnit = employees.find((e: any) => e.nip === a.nip)?.unit;
+          const shift = getShiftForTime(t, empUnit);
           return t > shift.start + shift.tolerance;
         });
         

@@ -23,6 +23,8 @@ export default defineConfig(({mode}) => {
           name: 'Si Abon Eiite App',
           short_name: 'Si Abon',
           theme_color: '#14b8a6',
+          display: 'standalone',
+          start_url: '/',
           icons: [
             {
               src: '/logo.png',

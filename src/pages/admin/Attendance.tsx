@@ -106,11 +106,28 @@ export default function AdminAttendance() {
     return h * 60 + m;
   };
 
-  const getShiftForTime = (timeMinutes: number) => {
+  const getShiftForTime = (timeMinutes: number, unit?: string) => {
     if (!shifts || shifts.length === 0) return { name: "Pagi", start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
     
-    const activeShifts = shifts.filter(s => s.isActive);
-    let bestShift = activeShifts[0] || shifts[0];
+    const activeShiftsRaw = shifts.filter(s => s.isActive);
+    const specificShifts = activeShiftsRaw.filter(s => s.unit && s.unit === unit);
+    const generalShifts = activeShiftsRaw.filter(s => !s.unit);
+    
+    const activeShifts = [
+        ...specificShifts,
+        ...generalShifts.filter(g => {
+           const gStart = parseTime(g.startTime);
+           return !specificShifts.some(s => {
+               const sStart = parseTime(s.startTime);
+               let diff = Math.abs(gStart - sStart);
+               if (diff > 720) diff = 1440 - diff;
+               return diff <= 240; // Overridden if within 4 hours
+           });
+        })
+    ];
+    if (activeShifts.length === 0) return { name: "Pagi", start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
+
+    let bestShift = activeShifts[0];
     let minDiff = Infinity;
     
     // Evaluate closest shift start time
@@ -145,56 +162,77 @@ export default function AdminAttendance() {
 
   // Process attendance data for Harian
   const todayStr = format(today, 'yyyy-MM-dd');
-  const harianRecords = attendanceData.filter(a => a.date === todayStr);
+  
+  // Get all attendance data sorted by date and time to process chronologically
+  const sortedRecords = [...attendanceData].sort((a, b) => {
+      const dateA = new Date(`${a.date}T${a.time === '-' ? '00:00' : a.time}:00`);
+      const dateB = new Date(`${b.date}T${b.time === '-' ? '00:00' : b.time}:00`);
+      return dateA.getTime() - dateB.getTime();
+  });
 
-  const groupedHarian = Object.values(harianRecords.reduce((acc: any, curr: any) => {
-    if (!acc[curr.nip]) {
-      acc[curr.nip] = [];
-    }
-    acc[curr.nip].push(curr);
-    return acc;
-  }, {}));
+  const processedHarianRaw: any[] = [];
+  
+  // Group by NIP first to process each person's timeline
+  const nipGroups = sortedRecords.reduce((acc: any, curr: any) => {
+      if (!acc[curr.nip]) acc[curr.nip] = [];
+      acc[curr.nip].push(curr);
+      return acc;
+  }, {});
 
-  const processedHarian = groupedHarian.map((records: any) => {
-    const inRecord = records.find((r: any) => r.type === 'in');
-    let outRecord = records.find((r: any) => r.type === 'out');
-    const leaveRecord = records.find((r: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(r.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(r.status));
+  Object.values(nipGroups).forEach((records: any) => {
+      let currentSession: any = null;
+      
+      records.forEach((record: any) => {
+          const isLeave = ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(record.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(record.status);
+          
+          if (isLeave) {
+              if (record.date === todayStr) {
+                  processedHarianRaw.push({ inRecord: null, outRecord: null, leaveRecord: record });
+              }
+          } else if (record.type === 'in') {
+              // If there was an unclosed session, ignore it and start a new one (or push as missing checkout)
+              if (currentSession && currentSession.inRecord.date === todayStr) {
+                  processedHarianRaw.push({ ...currentSession });
+              }
+              currentSession = { inRecord: record, outRecord: null, leaveRecord: null };
+          } else if (record.type === 'out') {
+              if (currentSession) {
+                  currentSession.outRecord = record;
+                  if (currentSession.inRecord.date === todayStr || record.date === todayStr) {
+                      // If the session started today OR finished today, we need to decide if we show it.
+                      // Usually, we only show it on the day it STARTED. (Night shift checkout today belongs to yesterday's Harian)
+                      if (currentSession.inRecord.date === todayStr) {
+                         processedHarianRaw.push({ ...currentSession });
+                      }
+                  }
+                  currentSession = null;
+              } else {
+                  // Orphaned out record (e.g. checked out without checking in)
+                  if (record.date === todayStr) {
+                      processedHarianRaw.push({ inRecord: null, outRecord: record, leaveRecord: null });
+                  }
+              }
+          }
+      });
+      // If there's an unclosed session remaining for today
+      if (currentSession && currentSession.inRecord.date === todayStr) {
+          processedHarianRaw.push({ ...currentSession });
+      }
+  });
 
-    // Resolve orphaned outRecord (if any) or missing outRecord (fetched from next day)
-    let nip = inRecord?.nip || outRecord?.nip || leaveRecord?.nip;
-    
-    if (!inRecord && outRecord) {
-        const prevDay = new Date(today.getTime() - 86400000);
-        const prevDayStr = [
-             prevDay.getFullYear(),
-             String(prevDay.getMonth() + 1).padStart(2, '0'),
-             String(prevDay.getDate()).padStart(2, '0')
-        ].join('-');
-        
-        const prevDayIn = attendanceData.find(a => a.date === prevDayStr && a.type === 'in' && a.nip === nip);
-        if (prevDayIn) return null; // Ignore this record for today, as it belongs to yesterday's shift
-    }
-    
-    if (inRecord && !outRecord) {
-        const nextDay = new Date(today.getTime() + 86400000);
-        const nextDayStr = [
-             nextDay.getFullYear(),
-             String(nextDay.getMonth() + 1).padStart(2, '0'),
-             String(nextDay.getDate()).padStart(2, '0')
-        ].join('-');
-        const nextDayOut = attendanceData.find(a => a.date === nextDayStr && a.type === 'out' && a.nip === nip);
-        if (nextDayOut) outRecord = nextDayOut;
-    }
-
-    const baseRecord = inRecord || outRecord || leaveRecord || records[0];
+  const processedHarian = processedHarianRaw.map((session: any) => {
+    const { inRecord, outRecord, leaveRecord } = session;
+    const baseRecord = inRecord || outRecord || leaveRecord;
+    if (!baseRecord) return null;
     
     const isIzin = ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(baseRecord.status);
     const locationVal = typeof baseRecord.location === 'object' && baseRecord.location !== null ? baseRecord.location.reason || baseRecord.location.address || JSON.stringify(baseRecord.location) : baseRecord.location;
     
     let shiftDisplay = baseRecord.shift || "-";
     if (inRecord && inRecord.time && inRecord.time !== "-") {
+      const empUnit = employees.find(e => e.nip === baseRecord.nip)?.unit;
       const t = parseTime(inRecord.time);
-      const shift = getShiftForTime(t);
+      const shift = getShiftForTime(t, empUnit);
       if (shift && shift.name) {
         shiftDisplay = shift.name;
       }
@@ -269,7 +307,9 @@ export default function AdminAttendance() {
         
         // Handle cross-midnight out record from the next day if missing today
         if (!outRecord) {
-          const nextDay = new Date(new Date(date).getTime() + 86400000);
+          const dateParts = date.split('-');
+          const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+          const nextDay = new Date(dateObj.getTime() + 86400000);
           const nextDayStr = [
                  nextDay.getFullYear(),
                  String(nextDay.getMonth() + 1).padStart(2, '0'),
@@ -303,7 +343,9 @@ export default function AdminAttendance() {
       } else if (outRecord) {
          // Check if this outRecord belongs to yesterday's inRecord.
          // If it does, we shouldn't mark it as 'M' today.
-         const prevDay = new Date(new Date(date).getTime() - 86400000);
+         const dateParts = date.split('-');
+         const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+         const prevDay = new Date(dateObj.getTime() - 86400000);
          const prevDayStr = [
              prevDay.getFullYear(),
              String(prevDay.getMonth() + 1).padStart(2, '0'),
@@ -382,7 +424,8 @@ export default function AdminAttendance() {
       dayAtt.forEach(a => {
         if (a.type === 'in') {
           const t = parseTime(a.time);
-          const shift = getShiftForTime(t);
+          const empUnit = employees.find(e => e.nip === a.nip)?.unit;
+          const shift = getShiftForTime(t, empUnit);
           if (t <= shift.start + shift.tolerance) {
             hadir++;
           } else {
@@ -446,7 +489,8 @@ export default function AdminAttendance() {
       filteredAttendance.forEach(a => {
         if (week.dates.includes(a.date) && a.type === 'in') {
           const t = parseTime(a.time);
-          const shift = getShiftForTime(t);
+          const empUnit = employees.find(e => e.nip === a.nip)?.unit;
+          const shift = getShiftForTime(t, empUnit);
           
           if (t > shift.start + shift.tolerance) {
             let lateMinutes = t - shift.start;
@@ -481,7 +525,8 @@ export default function AdminAttendance() {
       if (!empStats[a.nip]) return;
       
       const t = parseTime(a.time);
-      const shift = getShiftForTime(t);
+      const empUnit = employees.find(e => e.nip === a.nip)?.unit;
+      const shift = getShiftForTime(t, empUnit);
 
       if (a.type === 'in') {
         empStats[a.nip].inTimes.push(t - shift.start); // store difference for early birds

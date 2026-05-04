@@ -69,6 +69,7 @@ export default function AdminEmployees() {
   const [newShiftCheckOutAfter, setNewShiftCheckOutAfter] = useState(120);
   const [newShiftCrossesMidnight, setNewShiftCrossesMidnight] = useState(false);
   const [newShiftIsActive, setNewShiftIsActive] = useState(true);
+  const [newShiftUnit, setNewShiftUnit] = useState("");
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
   // State for Admins
@@ -446,7 +447,8 @@ export default function AdminEmployees() {
         checkOutBeforeMinutes: newShiftCheckOutBefore,
         checkOutAfterMinutes: newShiftCheckOutAfter,
         crossesMidnight: newShiftCrossesMidnight,
-        isActive: newShiftIsActive
+        isActive: newShiftIsActive,
+        unit: newShiftUnit === "none" ? "" : newShiftUnit
       };
       
       try {
@@ -509,6 +511,7 @@ export default function AdminEmployees() {
     setNewShiftCheckOutAfter(shift.checkOutAfterMinutes || 120);
     setNewShiftCrossesMidnight(shift.crossesMidnight);
     setNewShiftIsActive(shift.isActive);
+    setNewShiftUnit(shift.unit || "none");
     setEditingShiftId(shift.id);
     setIsAddShiftOpen(true);
   };
@@ -1108,6 +1111,23 @@ export default function AdminEmployees() {
                         </div>
                         <p className="text-[10px] text-amber-600">Ulangi: Isi "Menit sesudah" minimal 250 jika ingin absen sampai jam 15:00 di hari Jumat/Sabtu.</p>
                       </div>
+                      <div className="space-y-2 mt-4">
+                        <Label htmlFor="shift-unit">Unit Berlaku (Opsional)</Label>
+                        <Select value={newShiftUnit} onValueChange={setNewShiftUnit}>
+                          <SelectTrigger id="shift-unit">
+                            <SelectValue placeholder="Pilih Unit Layanan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Pilih Unit (Opsional)</SelectItem>
+                            <SelectItem value="Manajemen">Manajemen</SelectItem>
+                            <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+                            <SelectItem value="UGD/Rawat Inap">UGD/Rawat Inap</SelectItem>
+                            <SelectItem value="Poned">Poned</SelectItem>
+                            <SelectItem value="Pustu">Pustu</SelectItem>
+                            <SelectItem value="Polindes">Polindes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     <div className="flex items-center space-x-2 pt-2 border-t">
@@ -1147,6 +1167,7 @@ export default function AdminEmployees() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Nama Shift</TableHead>
+                        <TableHead>Unit</TableHead>
                         <TableHead>Jam Kerja</TableHead>
                         <TableHead>Jumat/Sabtu</TableHead>
                         <TableHead>Toleransi</TableHead>
@@ -1158,6 +1179,13 @@ export default function AdminEmployees() {
                       {shifts.map((shift, index) => (
                         <TableRow key={`${shift.id}-${index}`}>
                           <TableCell className="font-medium">{shift.name}</TableCell>
+                          <TableCell>
+                             {shift.unit ? (
+                                <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded text-[10px] whitespace-nowrap">{shift.unit}</span>
+                             ) : (
+                                <span className="text-slate-400 text-[10px]">Semua Shift</span>
+                             )}
+                          </TableCell>
                           <TableCell>{shift.startTime} - {shift.endTime} {shift.crossesMidnight ? "(+1)" : ""}</TableCell>
                           <TableCell>
                             <div className="text-xs">

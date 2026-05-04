@@ -11,6 +11,27 @@ import { Label } from '@/components/ui/label';
 
 import { format } from 'date-fns';
 
+const resolveActiveShifts = (shifts: any[], user?: any) => {
+  const activeShiftsRaw = shifts.filter(s => s.isActive);
+  const specificShifts = activeShiftsRaw.filter(s => s.unit && user && s.unit === user.unit);
+  const generalShifts = activeShiftsRaw.filter(s => !s.unit);
+  
+  return [
+      ...specificShifts,
+      ...generalShifts.filter(g => {
+         const [gHour, gMin] = g.startTime.split(':').map(Number);
+         const gStart = gHour * 60 + gMin;
+         return !specificShifts.some(s => {
+             const [sHour, sMin] = s.startTime.split(':').map(Number);
+             const sStart = sHour * 60 + sMin;
+             let diff = Math.abs(gStart - sStart);
+             if (diff > 720) diff = 1440 - diff;
+             return diff <= 240;
+         });
+      })
+  ];
+};
+
 export default function UserHome() {
   const navigate = useNavigate();
   const webcamRef = useRef<Webcam>(null);
@@ -23,7 +44,7 @@ export default function UserHome() {
   const [isWithinRange, setIsWithinRange] = useState(false);
   const [address, setAddress] = useState<string>('');
 
-  const [user, setUser] = useState<{name: string, nip: string, office: string, office2?: string} | null>(null);
+  const [user, setUser] = useState<{name: string, nip: string, office: string, office2?: string, unit?: string} | null>(null);
   const [settings, setSettings] = useState<any>(null);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [hasCheckedOut, setHasCheckedOut] = useState(false);
@@ -148,7 +169,7 @@ export default function UserHome() {
   useEffect(() => {
     if (hasCheckedIn && !hasCheckedOut) {
       if (shifts.length > 0) {
-        const activeShifts = shifts.filter(s => s.isActive);
+        const activeShifts = resolveActiveShifts(shifts, user);
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
@@ -245,7 +266,7 @@ export default function UserHome() {
     if (!hasCheckedIn && shifts.length > 0) {
       const isCountdownEnabled = settings?.absensiSettings?.enableCountdown !== false;
       
-      const activeShifts = shifts.filter(s => s.isActive);
+      const activeShifts = resolveActiveShifts(shifts, user);
       const calculateCheckInCountdown = () => {
         if (!isCountdownEnabled) {
           setCanCheckIn(true);
@@ -334,7 +355,7 @@ export default function UserHome() {
     // Timer untuk Absen Pulang (jika sudah absen masuk)
     if (hasCheckedIn && !hasCheckedOut && shiftEndTime) {
       const calculateCountdown = () => {
-        const activeShifts = shifts.filter(s => s.isActive);
+        const activeShifts = resolveActiveShifts(shifts, user);
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
