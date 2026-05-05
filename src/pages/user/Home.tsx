@@ -919,20 +919,6 @@ export default function UserHome() {
                   {leaveType === 'dinas_luar' && "Selamat menjalankan dinas luar, tetap semangat dan jaga kesehatan!"}
                 </AlertDescription>
               </Alert>
-            ) : hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga ? (
-              <>
-                <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400 flex flex-col items-center justify-center py-6">
-                  <CheckCircle2 className="w-8 h-8 text-teal-600 dark:text-teal-500 mb-2" />
-                  <AlertDescription className="text-center space-y-4">
-                    <p>Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
-                    <p>Silahkan Absen Pulang pada Jam <strong>{shiftEndTime}</strong></p>
-                    <div className="mt-4">
-                      <p className="text-sm text-teal-600/80 dark:text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
-                      <p className="text-5xl font-mono font-bold text-slate-800 dark:text-white tracking-wider">{countdown}</p>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              </>
             ) : hasCheckedOut && !isTambahJaga ? (
               <>
                 <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
@@ -947,6 +933,19 @@ export default function UserHome() {
               </>
             ) : (
               <>
+                {hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga && (
+                  <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400 flex flex-col items-center justify-center py-4">
+                    <CheckCircle2 className="w-6 h-6 text-teal-600 dark:text-teal-500 mb-1" />
+                    <AlertDescription className="text-center space-y-2">
+                      <p className="text-sm">Anda telah melakukan absen MASUK pada <strong>{checkInTime}</strong></p>
+                      <div className="mt-2">
+                        <p className="text-xs text-teal-600/80 dark:text-teal-500/80 mb-1">Waktu Menuju Absen Pulang:</p>
+                        <p className="text-4xl font-mono font-bold text-slate-800 dark:text-white tracking-wider">{countdown}</p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {isTambahJaga && (
                   <div className="mb-4">
                     <div className="flex justify-between items-center mb-2">
@@ -1028,18 +1027,18 @@ export default function UserHome() {
                   {isAbsenting ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
 
-                {hasCheckedIn && !canCheckOut && isWithinRange && !isTambahJaga && !replacingFriendNip && (
+                {hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga && !replacingFriendNip && settings?.absensiSettings?.enableEarlyCheckout !== false && (
                   <Button
                     onClick={() => {
                       if (window.confirm("Peringatan: Pulang Cepat akan mengurangi jam kerja efektif dalam satu bulan ini. Apakah Anda yakin ingin pulang cepat?")) {
                         handleAbsen(true);
                       }
                     }}
-                    disabled={isAbsenting}
-                    variant="destructive"
-                    className="w-full mt-2 bg-orange-500 hover:bg-orange-600 font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(249,115,22,0.5)]"
+                    disabled={isAbsenting || !isWithinRange}
+                    variant="outline"
+                    className="w-full mt-3 border-orange-500 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-500/10 font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(249,115,22,0.1)] transition-all"
                   >
-                    {isAbsenting ? 'Memproses...' : 'Pulang Cepat'}
+                    {isAbsenting ? 'Memproses...' : !isWithinRange ? 'Pulang Cepat (Di Luar Radius)' : 'Pulang Cepat'}
                   </Button>
                 )}
                 
