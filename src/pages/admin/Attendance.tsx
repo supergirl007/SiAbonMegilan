@@ -127,20 +127,9 @@ export default function AdminAttendance() {
     
     const activeShiftsRaw = shifts.filter(s => s.isActive);
     const specificShifts = activeShiftsRaw.filter(s => s.unit && s.unit === unit);
-    const generalShifts = activeShiftsRaw.filter(s => !s.unit);
+    const generalShifts = activeShiftsRaw.filter(s => !s.unit || s.unit === 'none' || s.unit === '');
     
-    const activeShifts = [
-        ...specificShifts,
-        ...generalShifts.filter(g => {
-           const gStart = parseTime(g.startTime);
-           return !specificShifts.some(s => {
-               const sStart = parseTime(s.startTime);
-               let diff = Math.abs(gStart - sStart);
-               if (diff > 720) diff = 1440 - diff;
-               return diff <= 240; // Overridden if within 4 hours
-           });
-        })
-    ];
+    const activeShifts = specificShifts.length > 0 ? specificShifts : generalShifts;
     if (activeShifts.length === 0) return { name: "Pagi", start: 8 * 60, end: 16 * 60, tolerance: parseInt(absensiSettings.tolerance || '15') };
 
     let bestShift = activeShifts[0];

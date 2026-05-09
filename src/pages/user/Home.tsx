@@ -11,25 +11,16 @@ import { Label } from '@/components/ui/label';
 
 import { format } from 'date-fns';
 
-const resolveActiveShifts = (shifts: any[], user?: any) => {
+const resolveActiveShifts = (shifts: any[], user?: any, employees: any[] = []) => {
+  const fullUser = user?.nip ? employees.find(e => e.nip === user.nip) || user : user;
   const activeShiftsRaw = shifts.filter(s => s.isActive);
-  const specificShifts = activeShiftsRaw.filter(s => s.unit && user && s.unit === user.unit);
-  const generalShifts = activeShiftsRaw.filter(s => !s.unit);
+  const specificShifts = activeShiftsRaw.filter(s => s.unit && fullUser && s.unit === fullUser.unit);
+  const generalShifts = activeShiftsRaw.filter(s => !s.unit || s.unit === 'none' || s.unit === '');
   
-  return [
-      ...specificShifts,
-      ...generalShifts.filter(g => {
-         const [gHour, gMin] = g.startTime.split(':').map(Number);
-         const gStart = gHour * 60 + gMin;
-         return !specificShifts.some(s => {
-             const [sHour, sMin] = s.startTime.split(':').map(Number);
-             const sStart = sHour * 60 + sMin;
-             let diff = Math.abs(gStart - sStart);
-             if (diff > 720) diff = 1440 - diff;
-             return diff <= 240;
-         });
-      })
-  ];
+  if (specificShifts.length > 0) {
+    return specificShifts;
+  }
+  return generalShifts;
 };
 
 export default function UserHome() {
@@ -169,7 +160,7 @@ export default function UserHome() {
   useEffect(() => {
     if (hasCheckedIn && !hasCheckedOut) {
       if (shifts.length > 0) {
-        const activeShifts = resolveActiveShifts(shifts, user);
+        const activeShifts = resolveActiveShifts(shifts, user, employees);
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
@@ -257,7 +248,7 @@ export default function UserHome() {
         setCanCheckOut(true);
       }
     }
-  }, [hasCheckedIn, hasCheckedOut, shifts, checkInTime]);
+  }, [hasCheckedIn, hasCheckedOut, shifts, checkInTime, user, employees]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -266,7 +257,7 @@ export default function UserHome() {
     if (!hasCheckedIn && shifts.length > 0) {
       const isCountdownEnabled = settings?.absensiSettings?.enableCountdown !== false;
       
-      const activeShifts = resolveActiveShifts(shifts, user);
+      const activeShifts = resolveActiveShifts(shifts, user, employees);
       const calculateCheckInCountdown = () => {
         if (!isCountdownEnabled) {
           setCanCheckIn(true);
@@ -355,7 +346,7 @@ export default function UserHome() {
     // Timer untuk Absen Pulang (jika sudah absen masuk)
     if (hasCheckedIn && !hasCheckedOut && shiftEndTime) {
       const calculateCountdown = () => {
-        const activeShifts = resolveActiveShifts(shifts, user);
+        const activeShifts = resolveActiveShifts(shifts, user, employees);
         let targetShift = activeShifts[0] || shifts[0];
         
         if (activeShifts.length > 1 && checkInTime) {
@@ -432,7 +423,7 @@ export default function UserHome() {
     }
     
     return () => clearInterval(interval);
-  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime, settings]);
+  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime, settings, user, employees]);
 
   const fetchLocation = () => {
     setIsLocating(true);
