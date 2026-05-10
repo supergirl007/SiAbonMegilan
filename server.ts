@@ -463,7 +463,7 @@ async function startServer() {
 
               const existingNipRow = rows.find(r => r.get('nip') === nip);
               if (existingNipRow && existingNipRow.get('deviceId') !== deviceId) {
-                return res.status(403).json({ success: false, message: 'Akun Anda sudah terdaftar di perangkat lain (atau cache browser telah dihapus). Silahkan hubungi Admin untuk mereset perangkat dari menu Karyawan.' });
+                return res.status(403).json({ success: false, message: 'Akun Anda terdaftar di perangkat lain. Untuk pengguna iOS/iPhone yang baru menginstall ke Layar Utama, layar utama dianggap sebagai perangkat baru. Silahkan minta Admin untuk mereset perangkat Anda di menu Karyawan.' });
               }
 
               if (!existingDeviceRow && !existingNipRow) {

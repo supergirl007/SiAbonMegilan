@@ -6,6 +6,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
+import InstallPrompt from '@/components/InstallPrompt';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import AdminLayout from './layouts/AdminLayout';
@@ -64,6 +65,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <InstallPrompt />
       <Toaster />
     </Router>
   );
