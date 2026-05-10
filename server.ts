@@ -431,7 +431,7 @@ async function startServer() {
             const rows = await userSheet.getRows();
             const row = rows.find(r => String(r.get('nip') || '').trim() === nip && String(r.get('password') || '').trim() === password);
             if (row) {
-              user = { id: row.get('id'), nip: String(row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2') };
+              user = { id: row.get('id'), nip: String(row.get('nip') || '').trim(), name: row.get('name'), role: row.get('role'), office: row.get('office'), office2: row.get('office2'), unit: row.get('unit') || '' };
               console.log('User found:', user.name);
             }
           }
