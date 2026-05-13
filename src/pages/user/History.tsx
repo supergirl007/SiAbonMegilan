@@ -5,13 +5,20 @@ import { format } from 'date-fns';
 
 export default function UserHistory() {
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const response = await fetch('/api/attendance');
+        const yyyy = currentMonth.getFullYear();
+        const mm = String(currentMonth.getMonth() + 1).padStart(2, '0');
+        const firstDay = `${yyyy}-${mm}-01`;
+        const lastDayObj = new Date(yyyy, currentMonth.getMonth() + 1, 0);
+        const lastDay = `${lastDayObj.getFullYear()}-${String(lastDayObj.getMonth() + 1).padStart(2, '0')}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+        
+        const response = await fetch(`/api/attendance?startDate=${firstDay}&endDate=${lastDay}`);
         if (response.ok) {
           const data = await response.json();
           // Filter for current user
@@ -25,7 +32,7 @@ export default function UserHistory() {
     if (user.nip) {
       fetchAttendance();
     }
-  }, [user.nip]);
+  }, [user.nip, currentMonth]);
 
   const selectedDateString = date ? format(date, 'yyyy-MM-dd') : '';
   const dayAttendance = attendanceData.filter(a => a.date === selectedDateString || (typeof a.location === 'object' && a.location !== null && a.location.endDate && new Date(a.date) <= date! && new Date(a.location.endDate) >= date!));
@@ -56,6 +63,8 @@ export default function UserHistory() {
             mode="single"
             selected={date}
             onSelect={setDate}
+            onMonthChange={setCurrentMonth}
+            month={currentMonth}
             className="rounded-md border-0 w-full flex justify-center p-4"
             classNames={{
               day_selected: "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white focus:bg-emerald-500 focus:text-white",

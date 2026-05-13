@@ -94,7 +94,13 @@ export default function AdminAttendance() {
 
   const fetchAttendance = async () => {
     try {
-      const response = await fetch('/api/attendance');
+      try {
+        await fetch('/api/attendance/auto-checkout-check', { method: 'POST' });
+      } catch (e) {
+        console.error('Failed auto-checkout check', e);
+      }
+      
+      const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
       if (response.ok) {
         const data = await response.json();
         setAttendanceData(data);
@@ -271,6 +277,26 @@ export default function AdminAttendance() {
 
   // Process attendance data for Bulanan
 
+  const countConsecutiveLeave = (empAtt: any[], dateStr: string, isMatch: (rec: any) => boolean) => {
+    let count = 0;
+    const parts = dateStr.split('-');
+    let currTime = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    
+    while (true) {
+      const dStr = format(currTime, 'yyyy-MM-dd');
+      const recs = empAtt.filter(a => a.date === dStr);
+      const leave = recs.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(a.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status));
+      
+      if (leave && isMatch(leave)) {
+        count++;
+        currTime.setDate(currTime.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return count;
+  };
+
   const bulananData = employees.map(emp => {
     const empAttendance = attendanceData.filter(a => a.nip === emp.nip);
     const attendanceMap: any = {};
@@ -286,11 +312,16 @@ export default function AdminAttendance() {
 
       if (leaveRecord) {
         if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') statusInfo.code = 'I';
-        else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') statusInfo.code = 'S';
+        else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') {
+          statusInfo.code = 'S';
+          const streak = countConsecutiveLeave(empAttendance, date, (r) => r.status === 'Sakit' || r.type === 'sakit');
+          statusInfo.hours = streak <= 3 ? (6 + 25/60) : 0;
+        }
         else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') statusInfo.code = 'C';
         else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') {
           statusInfo.code = 'D';
-          statusInfo.hours = 7;
+          const streak = countConsecutiveLeave(empAttendance, date, (r) => r.status === 'Dinas Luar' || r.type === 'dinas_luar');
+          statusInfo.hours = streak <= 3 ? (6 + 25/60) : 0;
         }
         else if (leaveRecord.status === 'pending') statusInfo.code = 'P';
         else statusInfo.code = leaveRecord.status?.[0] || 'M';
@@ -743,8 +774,7 @@ export default function AdminAttendance() {
       if (response.ok) {
         toast.success('Permintaan disetujui');
         // Refresh attendance data
-        const res = await fetch('/api/attendance');
-        if (res.ok) setAttendanceData(await res.json());
+        fetchAttendance();
       }
     } catch (error) {
       toast.error('Gagal menyetujui permintaan');
@@ -761,8 +791,7 @@ export default function AdminAttendance() {
       if (response.ok) {
         toast.success('Permintaan ditolak');
         // Refresh attendance data
-        const res = await fetch('/api/attendance');
-        if (res.ok) setAttendanceData(await res.json());
+        fetchAttendance();
       }
     } catch (error) {
       toast.error('Gagal menolak permintaan');
@@ -1000,7 +1029,7 @@ export default function AdminAttendance() {
                     className="w-auto" 
                   />
                 </div>
-                <Button className="flex items-center gap-2">
+                <Button onClick={fetchAttendance} className="flex items-center gap-2">
                   <Search className="h-4 w-4" />
                   Tampilkan
                 </Button>

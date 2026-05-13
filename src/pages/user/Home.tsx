@@ -62,6 +62,13 @@ export default function UserHome() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Pre-flight check to fix any missing checkouts globally
+        try {
+          await fetch('/api/attendance/auto-checkout-check', { method: 'POST' });
+        } catch (e) {
+          console.error('Failed auto-checkout check', e);
+        }
+
         const [locRes, setRes, attRes, shiftRes, annRes, empRes] = await Promise.all([
           fetch('/api/locations'),
           fetch('/api/settings'),

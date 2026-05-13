@@ -628,38 +628,58 @@ async function startServer() {
     res.json({ success: true, message: 'Pendaftaran berhasil' });
   });
 
-  // --- Attendance API ---
   app.get('/api/attendance', async (req, res) => {
+    const { startDate, endDate } = req.query;
+    
+    let allAttendance: any[] = [];
     if (doc) {
       try {
         if (cache['attendance'] && Date.now() - cache['attendance'].timestamp < CACHE_DURATION) {
-          return res.json(cache['attendance'].data);
-        }
-        const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const attendance = rows.map(row => ({
-            id: row.get('id'),
-            nip: row.get('nip'),
-            name: row.get('name'),
-            date: row.get('date'),
-            time: row.get('time'),
-            type: row.get('type'),
-            location: (() => {
-              try { return JSON.parse(row.get('location')); }
-              catch (e) { return row.get('location'); }
-            })(),
-            status: row.get('status'),
-            photoUrl: row.get('photoUrl')
-          }));
-          cache['attendance'] = { timestamp: Date.now(), data: attendance };
-          return res.json(attendance);
+          allAttendance = cache['attendance'].data;
+        } else {
+          const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl', 'shift']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            allAttendance = rows.map(row => ({
+              id: row.get('id'),
+              nip: row.get('nip'),
+              name: row.get('name'),
+              date: row.get('date'),
+              time: row.get('time'),
+              type: row.get('type'),
+              location: (() => {
+                try { return JSON.parse(row.get('location')); }
+                catch (e) { return row.get('location'); }
+              })(),
+              status: row.get('status'),
+              photoUrl: row.get('photoUrl'),
+              shift: row.get('shift')
+            }));
+            cache['attendance'] = { timestamp: Date.now(), data: allAttendance };
+          }
         }
       } catch (error) {
         console.error('Error fetching attendance from spreadsheet:', error);
       }
+    } else {
+      allAttendance = db.attendance;
     }
-    res.json(db.attendance);
+
+    let filteredAttendance = allAttendance;
+    if (startDate && endDate) {
+      filteredAttendance = allAttendance.filter(a => a.date >= startDate && a.date <= endDate);
+    } else {
+      // Default to last month and current month if no range given 
+      const today = new Date();
+      const prevMonthObj = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const firstDay = `${prevMonthObj.getFullYear()}-${String(prevMonthObj.getMonth() + 1).padStart(2, '0')}-01`;
+      
+      const nextMonthObj = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      const nextMonthEnd = `${nextMonthObj.getFullYear()}-${String(nextMonthObj.getMonth() + 1).padStart(2, '0')}-${String(nextMonthObj.getDate()).padStart(2, '0')}`;
+      filteredAttendance = allAttendance.filter(a => a.date >= firstDay && a.date <= nextMonthEnd);
+    }
+
+    return res.json(filteredAttendance);
   });
 
   app.post('/api/attendance', async (req, res) => {
@@ -697,6 +717,151 @@ async function startServer() {
     }
 
     res.json({ success: true, message: 'Absensi berhasil dicatat' });
+  });
+
+  app.post('/api/attendance/bulk', async (req, res) => {
+    const { records } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.json({ success: true, message: 'No records to add' });
+    }
+    
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl', 'shift']);
+        if (sheet) {
+          const rowsToAdd = records.map((attendanceData: any, index: number) => ({
+            id: (Date.now() + index).toString(),
+            ...attendanceData,
+            photoUrl: attendanceData.photoUrl || '',
+            location: typeof attendanceData.location === 'object' ? JSON.stringify(attendanceData.location) : attendanceData.location
+          }));
+          await sheet.addRows(rowsToAdd);
+          delete cache['attendance'];
+        }
+      } catch (error) {
+        console.error('Error saving bulk attendance:', error);
+        return res.status(500).json({ success: false, message: 'Gagal menyimpan bulk absensi.' });
+      }
+    } else {
+      records.forEach((rec: any, i: number) => {
+        db.attendance.push({ id: (Date.now() + i).toString(), ...rec } as any);
+      });
+    }
+
+    res.json({ success: true, message: 'Bulk absensi berhasil dicatat' });
+  });
+
+  app.post('/api/attendance/auto-checkout-check', async (req, res) => {
+    if (!doc) return res.json({ success: true, fixedCount: 0 });
+
+    try {
+      // Get necessary data
+      const [attSheet, empSheet, shiftSheet] = await Promise.all([
+        getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl', 'shift']),
+        getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']),
+        getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'fridayEndTime', 'saturdayEndTime', 'checkInBeforeMinutes', 'checkInAfterMinutes', 'checkOutBeforeMinutes', 'checkOutAfterMinutes', 'crossesMidnight', 'isActive', 'unit'])
+      ]);
+
+      if (!attSheet || !empSheet || !shiftSheet) return res.json({ success: false });
+
+      const [attRows, empRows, shiftRows] = await Promise.all([
+        attSheet.getRows(),
+        empSheet.getRows(),
+        shiftSheet.getRows()
+      ]);
+
+      const attendance = attRows.map(r => ({
+        nip: r.get('nip'), name: r.get('name'), date: r.get('date'),
+        time: r.get('time'), type: r.get('type'), location: r.get('location'),
+        status: r.get('status'), shift: r.get('shift') || ''
+      }));
+
+      const employees = empRows.map(r => ({ nip: r.get('nip'), unit: r.get('unit') }));
+      const shifts = shiftRows.map(r => ({
+        name: r.get('name'), startTime: r.get('startTime'), endTime: r.get('endTime'),
+        fridayEndTime: r.get('fridayEndTime') || '', saturdayEndTime: r.get('saturdayEndTime') || '',
+        checkOutAfterMinutes: parseInt(r.get('checkOutAfterMinutes') || '120'),
+        crossesMidnight: String(r.get('crossesMidnight')).toLowerCase() === 'true',
+        isActive: String(r.get('isActive')).toLowerCase() === 'true',
+        unit: r.get('unit') || ''
+      }));
+
+      // Find 'in' records without 'out' records
+      const inRecords = attendance.filter(a => a.type === 'in');
+      const outRecords = attendance.filter(a => a.type === 'out');
+      const now = new Date();
+      
+      const missingOuts = [];
+
+      for (const inRec of inRecords) {
+        if (outRecords.some(o => o.nip === inRec.nip && o.date === inRec.date)) continue;
+
+        // Determine this record's shift
+        let targetShift = shifts.find(s => s.name === inRec.shift);
+        if (!targetShift) {
+          const empUnit = employees.find(e => e.nip === inRec.nip)?.unit || '';
+          const activeShifts = shifts.filter(s => s.isActive);
+          const specificShifts = activeShifts.filter(s => s.unit && s.unit === empUnit);
+          // Simplified fallback: pick first matching shift or first overall
+          targetShift = specificShifts[0] || activeShifts.filter(s => !s.unit || s.unit === 'none' || s.unit === '')[0] || shifts[0];
+        }
+
+        if (!targetShift) continue;
+
+        // Determine correct end time based on day of week
+        const recDateObj = new Date(inRec.date);
+        const isFriday = recDateObj.getDay() === 5;
+        const isSaturday = recDateObj.getDay() === 6;
+        let endTimeStr = targetShift.endTime;
+        if (isFriday && targetShift.fridayEndTime) endTimeStr = targetShift.fridayEndTime;
+        if (isSaturday && targetShift.saturdayEndTime) endTimeStr = targetShift.saturdayEndTime;
+
+        if (!endTimeStr) continue;
+
+        // Construct absolute end time limit
+        const [endHr, endMin] = endTimeStr.split(':').map(Number);
+        const endDateTime = new Date(inRec.date);
+        endDateTime.setHours(endHr, endMin, 0, 0);
+
+        if (targetShift.crossesMidnight) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+
+        // Add tolerance
+        endDateTime.setMinutes(endDateTime.getMinutes() + targetShift.checkOutAfterMinutes);
+
+        // If 'now' is past the maximum allowed checkout time, auto-checkout
+        if (now > endDateTime) {
+          const autoCheckoutHour = (endHr - 1 + 24) % 24;
+          const autoCheckoutTimeStr = `${autoCheckoutHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+
+          missingOuts.push({
+            id: (Date.now() + missingOuts.length).toString(),
+            nip: inRec.nip,
+            name: inRec.name,
+            date: inRec.date,
+            time: autoCheckoutTimeStr,
+            type: 'out',
+            location: inRec.location,
+            status: 'Hadir (Pulang Cepat)',
+            photoUrl: '', // Auto checkout has no photo
+            shift: targetShift.name
+          });
+        }
+      }
+
+      if (missingOuts.length > 0) {
+        await attSheet.addRows(missingOuts);
+        delete cache['attendance'];
+        return res.json({ success: true, fixedCount: missingOuts.length });
+      }
+
+      return res.json({ success: true, fixedCount: 0 });
+
+    } catch (error) {
+      console.error('Error auto-checkout:', error);
+      return res.status(500).json({ success: false, message: 'Gagal auto-checkout' });
+    }
   });
 
   app.put('/api/attendance/:id', async (req, res) => {
