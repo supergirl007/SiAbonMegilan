@@ -42,6 +42,12 @@ export default function AdminEmployees() {
   const [newLocKecamatan, setNewLocKecamatan] = useState("");
   const [newLocCoords, setNewLocCoords] = useState("");
 
+  // State for Units
+  const [units, setUnits] = useState<{id: string, name: string}[]>([]);
+  const [isAddUnitOpen, setIsAddUnitOpen] = useState(false);
+  const [newUnitName, setNewUnitName] = useState("");
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+
   // State for Shifts
   const [shifts, setShifts] = useState<{
     id: string, 
@@ -137,6 +143,20 @@ export default function AdminEmployees() {
       }
     };
     fetchAdmins();
+
+    // Fetch units from API
+    const fetchUnits = async () => {
+      try {
+        const response = await fetch('/api/units');
+        if (response.ok) {
+          const data = await response.json();
+          setUnits(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch units:', error);
+      }
+    };
+    fetchUnits();
 
     // Fetch locations from API
     const fetchLocations = async () => {
@@ -430,6 +450,69 @@ export default function AdminEmployees() {
       }
     } catch (error) {
       console.error("Error deleting location:", error);
+      toast.error("Terjadi kesalahan jaringan");
+    }
+  };
+
+  const handleAddUnit = async () => {
+    if (newUnitName) {
+      const unitData = {
+        id: editingUnitId || Date.now().toString(),
+        name: newUnitName
+      };
+
+      try {
+        const response = await fetch('/api/units', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(unitData),
+        });
+
+        if (response.ok) {
+          if (editingUnitId) {
+            const updatedUnits = units.map(u => u.id === editingUnitId ? unitData : u);
+            setUnits(updatedUnits);
+            toast.success("Unit Layanan berhasil diperbarui");
+          } else {
+            setUnits([...units, unitData]);
+            toast.success("Unit Layanan berhasil ditambahkan");
+          }
+          setIsAddUnitOpen(false);
+          setNewUnitName("");
+          setEditingUnitId(null);
+        } else {
+          toast.error("Gagal menyimpan Unit Layanan di server");
+        }
+      } catch (error) {
+        console.error("Error saving unit:", error);
+        toast.error("Terjadi kesalahan jaringan");
+      }
+    } else {
+      toast.error("Nama unit harus diisi");
+    }
+  };
+
+  const handleEditUnit = (unit: any) => {
+    setEditingUnitId(unit.id);
+    setNewUnitName(unit.name);
+    setIsAddUnitOpen(true);
+  };
+
+  const handleDeleteUnit = async (id: string) => {
+    try {
+      const response = await fetch(`/api/units/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setUnits(units.filter(u => u.id !== id));
+        toast.success("Unit Layanan berhasil dihapus");
+      } else {
+        toast.error("Gagal menghapus Unit Layanan di server");
+      }
+    } catch (error) {
+      console.error("Error deleting unit:", error);
       toast.error("Terjadi kesalahan jaringan");
     }
   };
@@ -807,15 +890,9 @@ export default function AdminEmployees() {
                           <SelectValue placeholder="Pilih Unit Kerja" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Manajemen">Manajemen</SelectItem>
-                          <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
-                          <SelectItem value="UGD/Rawat Inap">UGD/Rawat Inap</SelectItem>
-                          <SelectItem value="Poned">Poned</SelectItem>
-                          <SelectItem value="Pustu">Pustu</SelectItem>
-                          <SelectItem value="Polindes">Polindes</SelectItem>
-                          <SelectItem value="Ponkesdes">Ponkesdes</SelectItem>
-                          <SelectItem value="Armada">Armada</SelectItem>
-                          <SelectItem value="Kebersihan">Kebersihan</SelectItem>
+                          {units.map((unit) => (
+                            <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1018,6 +1095,76 @@ export default function AdminEmployees() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="unit">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Daftar Unit Layanan</CardTitle>
+              <Dialog open={isAddUnitOpen} onOpenChange={setIsAddUnitOpen}>
+                <DialogTrigger render={
+                  <Button className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Tambah Unit Layanan
+                  </Button>
+                } onClick={() => {
+                  setEditingUnitId(null);
+                  setNewUnitName("");
+                }} />
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingUnitId ? 'Edit Unit Layanan' : 'Tambah Unit Layanan Baru'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="unit-name">Nama Unit Layanan</Label>
+                      <Input 
+                        id="unit-name" 
+                        placeholder="Contoh: Manajemen, UGD, Rawat Jalan" 
+                        value={newUnitName}
+                        onChange={(e) => setNewUnitName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleAddUnit}>{editingUnitId ? 'Simpan Perubahan' : 'Simpan'}</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nama Unit Layanan</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {units.map((unit) => (
+                      <TableRow key={unit.id}>
+                        <TableCell className="font-medium">{unit.name}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => handleEditUnit(unit)}>Edit</Button>
+                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => handleDeleteUnit(unit.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {units.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center py-6 text-slate-500">
+                          Belum ada data Unit Layanan
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="shift">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1119,12 +1266,9 @@ export default function AdminEmployees() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Pilih Unit (Opsional)</SelectItem>
-                            <SelectItem value="Manajemen">Manajemen</SelectItem>
-                            <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
-                            <SelectItem value="UGD/Rawat Inap">UGD/Rawat Inap</SelectItem>
-                            <SelectItem value="Poned">Poned</SelectItem>
-                            <SelectItem value="Pustu">Pustu</SelectItem>
-                            <SelectItem value="Polindes">Polindes</SelectItem>
+                            {units.map((unit) => (
+                              <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>

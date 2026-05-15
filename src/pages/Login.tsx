@@ -33,6 +33,7 @@ export default function Login() {
 
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [units, setUnits] = useState<{id: string, name: string}[]>([]);
 
   const [appName, setAppName] = useState("Si Abon Eiite App");
   const [appLogo, setAppLogo] = useState("");
@@ -72,6 +73,19 @@ export default function Login() {
       }
     };
     fetchSettings();
+
+    const fetchUnits = async () => {
+      try {
+        const response = await fetch('/api/units');
+        if (response.ok) {
+          const data = await response.json();
+          setUnits(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch units:', error);
+      }
+    };
+    fetchUnits();
   }, [navigate]);
 
   const generateDeviceId = async () => {
@@ -388,15 +402,9 @@ export default function Login() {
                   <SelectValue placeholder="Pilih Unit Kerja" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Manajemen">Manajemen</SelectItem>
-                  <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
-                  <SelectItem value="UGD/Rawat Inap">UGD/Rawat Inap</SelectItem>
-                  <SelectItem value="Poned">Poned</SelectItem>
-                  <SelectItem value="Pustu">Pustu</SelectItem>
-                  <SelectItem value="Polindes">Polindes</SelectItem>
-                  <SelectItem value="Ponkesdes">Ponkesdes</SelectItem>
-                  <SelectItem value="Armada">Armada</SelectItem>
-                  <SelectItem value="Kebersihan">Kebersihan</SelectItem>
+                  {units.map((unit) => (
+                    <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -149,7 +149,13 @@ export default function AdminDashboard() {
         };
 
         const today = format(new Date(), 'yyyy-MM-dd');
-        const todayAttendance = attendance.filter((a: any) => a.date === today);
+        const todayAttendance = attendance.filter((a: any) => {
+          if (a.date === today) return true;
+          if (a.location && typeof a.location === 'object' && a.location.endDate) {
+            return today >= a.date && today <= a.location.endDate;
+          }
+          return false;
+        });
         const presentToday = todayAttendance.filter((a: any) => a.type === 'in');
         
         const lateToday = presentToday.filter((a: any) => {

@@ -35,7 +35,13 @@ export default function UserHistory() {
   }, [user.nip, currentMonth]);
 
   const selectedDateString = date ? format(date, 'yyyy-MM-dd') : '';
-  const dayAttendance = attendanceData.filter(a => a.date === selectedDateString || (typeof a.location === 'object' && a.location !== null && a.location.endDate && new Date(a.date) <= date! && new Date(a.location.endDate) >= date!));
+  const dayAttendance = attendanceData.filter(a => {
+    if (a.date === selectedDateString) return true;
+    if (typeof a.location === 'object' && a.location !== null && a.location.endDate) {
+      return selectedDateString >= a.date && selectedDateString <= a.location.endDate;
+    }
+    return false;
+  });
   
   const inRecord = dayAttendance.find(a => a.type === 'in');
   const outRecord = dayAttendance.find(a => a.type === 'out');

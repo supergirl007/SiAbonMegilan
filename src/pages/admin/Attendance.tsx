@@ -277,24 +277,21 @@ export default function AdminAttendance() {
 
   // Process attendance data for Bulanan
 
-  const countConsecutiveLeave = (empAtt: any[], dateStr: string, isMatch: (rec: any) => boolean) => {
-    let count = 0;
-    const parts = dateStr.split('-');
-    let currTime = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  const isDateInLeaveRange = (leaveRecord: any, checkDateStr: string) => {
+    if (!leaveRecord || (leaveRecord.type !== 'izin' && leaveRecord.type !== 'sakit' && leaveRecord.type !== 'Cuti' && leaveRecord.type !== 'dinas_luar' && leaveRecord.type !== 'pending' && !['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(leaveRecord.status))) return false;
     
-    while (true) {
-      const dStr = format(currTime, 'yyyy-MM-dd');
-      const recs = empAtt.filter(a => a.date === dStr);
-      const leave = recs.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(a.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status));
-      
-      if (leave && isMatch(leave)) {
-        count++;
-        currTime.setDate(currTime.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    return count;
+    const startDate = leaveRecord.date;
+    const endDate = leaveRecord.location?.endDate || startDate;
+    
+    return checkDateStr >= startDate && checkDateStr <= endDate;
+  };
+
+  const getLeaveDayNumber = (leaveRecord: any, checkDateStr: string) => {
+    const startObj = new Date(leaveRecord.date);
+    const checkObj = new Date(checkDateStr);
+    const diffTime = Math.abs(checkObj.getTime() - startObj.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return diffDays + 1; // 1-indexed day (first day is day 1)
   };
 
   const bulananData = employees.map(emp => {
@@ -303,25 +300,30 @@ export default function AdminAttendance() {
     let totalHoursCount = 0;
 
     dates.forEach(date => {
-      const recordsForDate = empAttendance.filter(a => a.date === date);
-      let statusInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
+      // Find normal IN/OUT records for the exact date
+      const exactRecords = empAttendance.filter(a => a.date === date);
       
-      const inRecord = recordsForDate.find(a => a.type === 'in');
-      let outRecord = recordsForDate.find(a => a.type === 'out');
-      const leaveRecord = recordsForDate.find(a => ['izin', 'sakit', 'Cuti', 'dinas_luar', 'pending'].includes(a.type) || ['izin', 'Sakit', 'Cuti', 'Dinas Luar', 'pending'].includes(a.status));
+      // Keep normal logic for IN/OUT
+      const inRecord = exactRecords.find(a => a.type === 'in');
+      let outRecord = exactRecords.find(a => a.type === 'out');
+      
+      // Find a multi-day (or single day) leave record that covers this date
+      const leaveRecord = empAttendance.find(a => isDateInLeaveRange(a, date));
+
+      let statusInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
 
       if (leaveRecord) {
         if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') statusInfo.code = 'I';
         else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') {
           statusInfo.code = 'S';
-          const streak = countConsecutiveLeave(empAttendance, date, (r) => r.status === 'Sakit' || r.type === 'sakit');
-          statusInfo.hours = streak <= 3 ? (6 + 25/60) : 0;
+          const dayNumber = getLeaveDayNumber(leaveRecord, date);
+          statusInfo.hours = dayNumber <= 3 ? (6 + 25/60) : 0;
         }
         else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') statusInfo.code = 'C';
         else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') {
           statusInfo.code = 'D';
-          const streak = countConsecutiveLeave(empAttendance, date, (r) => r.status === 'Dinas Luar' || r.type === 'dinas_luar');
-          statusInfo.hours = streak <= 3 ? (6 + 25/60) : 0;
+          const dayNumber = getLeaveDayNumber(leaveRecord, date);
+          statusInfo.hours = dayNumber <= 3 ? (6 + 25/60) : 0;
         }
         else if (leaveRecord.status === 'pending') statusInfo.code = 'P';
         else statusInfo.code = leaveRecord.status?.[0] || 'M';

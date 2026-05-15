@@ -215,7 +215,14 @@ export default function UserHome() {
             }
           }
 
-          const userAttToday = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
+          const userAttToday = data.filter((a: any) => {
+            if (a.nip !== nipToCheck) return false;
+            if (a.date === today) return true;
+            if (a.location && typeof a.location === 'object' && a.location.endDate) {
+              return today >= a.date && today <= a.location.endDate;
+            }
+            return false;
+          });
           const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
           const userAttYesterday = data.filter((a: any) => a.nip === nipToCheck && a.date === yesterday);
           
@@ -880,7 +887,14 @@ export default function UserHome() {
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         
         if (submitType === 'in') {
-          const personAtt = checkData.filter((a: any) => a.nip === submitNip && a.date === todayStr);
+          const personAtt = checkData.filter((a: any) => {
+            if (a.nip !== submitNip) return false;
+            if (a.date === todayStr) return true;
+            if (a.location && typeof a.location === 'object' && a.location.endDate) {
+              return todayStr >= a.date && todayStr <= a.location.endDate;
+            }
+            return false;
+          });
           const hasGotLeave = personAtt.find((a: any) => ['izin', 'sakit', 'Cuti', 'dinas_luar'].includes(a.type));
           const hasAlreadyIn = personAtt.find((a: any) => a.type === 'in');
           
@@ -949,7 +963,14 @@ export default function UserHome() {
           nipToCheck = nextReplacingNip;
         }
         
-        const userAtt = data.filter((a: any) => a.nip === nipToCheck && a.date === today);
+        const userAtt = data.filter((a: any) => {
+          if (a.nip !== nipToCheck) return false;
+          if (a.date === today) return true;
+          if (a.location && typeof a.location === 'object' && a.location.endDate) {
+            return today >= a.date && today <= a.location.endDate;
+          }
+          return false;
+        });
         const inRecord = userAtt.find((a: any) => a.type === 'in');
         const outRecord = userAtt.find((a: any) => a.type === 'out');
         

@@ -665,9 +665,17 @@ async function startServer() {
       allAttendance = db.attendance;
     }
 
+    const filterByDateRange = (start: string, end: string) => {
+      return allAttendance.filter(a => {
+        const aStart = a.date;
+        const aEnd = (a.location && typeof a.location === 'object' && a.location.endDate) ? a.location.endDate : a.date;
+        return aStart <= end && aEnd >= start;
+      });
+    };
+
     let filteredAttendance = allAttendance;
     if (startDate && endDate) {
-      filteredAttendance = allAttendance.filter(a => a.date >= startDate && a.date <= endDate);
+      filteredAttendance = filterByDateRange(startDate as string, endDate as string);
     } else {
       // Default to last month and current month if no range given 
       const today = new Date();
@@ -676,7 +684,7 @@ async function startServer() {
       
       const nextMonthObj = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       const nextMonthEnd = `${nextMonthObj.getFullYear()}-${String(nextMonthObj.getMonth() + 1).padStart(2, '0')}-${String(nextMonthObj.getDate()).padStart(2, '0')}`;
-      filteredAttendance = allAttendance.filter(a => a.date >= firstDay && a.date <= nextMonthEnd);
+      filteredAttendance = filterByDateRange(firstDay, nextMonthEnd);
     }
 
     return res.json(filteredAttendance);
@@ -1199,6 +1207,86 @@ async function startServer() {
       }
     }
     res.json({ success: true, message: 'Lokasi berhasil dihapus' });
+  });
+
+  // --- Units API ---
+  app.get('/api/units', async (req, res) => {
+    if (doc) {
+      try {
+        if (cache['units'] && Date.now() - cache['units'].timestamp < CACHE_DURATION) {
+          return res.json(cache['units'].data);
+        }
+        const sheet = await getOrCreateSheet('Units', ['id', 'name']);
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const units = rows.map(row => ({
+            id: row.get('id'),
+            name: row.get('name')
+          }));
+          cache['units'] = { data: units, timestamp: Date.now() };
+          return res.json(units);
+        }
+      } catch (error) {
+        console.error('Error fetching units:', error);
+      }
+    }
+    res.json((db as any).units || []);
+  });
+
+  app.post('/api/units', async (req, res) => {
+    const unit = req.body;
+    if (doc) {
+      try {
+        const sheet = await getOrCreateSheet('Units', ['id', 'name']);
+        if (sheet) {
+          if (unit.id) {
+            const rows = await sheet.getRows();
+            const existingRow = rows.find(r => r.get('id') === unit.id);
+            if (existingRow) {
+              existingRow.set('name', unit.name || '');
+              await existingRow.save();
+            } else {
+              await sheet.addRow(unit);
+            }
+          } else {
+            unit.id = Date.now().toString();
+            await sheet.addRow(unit);
+          }
+          delete cache['units'];
+        }
+      } catch (error) {
+        console.error('Error saving unit:', error);
+      }
+    } else {
+      unit.id = unit.id || Date.now().toString();
+      if (!(db as any).units) (db as any).units = [];
+      const index = (db as any).units.findIndex((u: any) => u.id === unit.id);
+      if (index >= 0) (db as any).units[index] = unit;
+      else (db as any).units.push(unit);
+    }
+    res.json({ success: true, message: 'Unit berhasil disimpan' });
+  });
+
+  app.delete('/api/units/:id', async (req, res) => {
+    const { id } = req.params;
+    if (doc) {
+      try {
+        const sheet = await getSheet('Units');
+        if (sheet) {
+          const rows = await sheet.getRows();
+          const rowToDelete = rows.find(r => String(r.get('id')) === String(id));
+          if (rowToDelete) {
+            await rowToDelete.delete();
+            delete cache['units'];
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting unit:', error);
+      }
+    } else {
+       if ((db as any).units) (db as any).units = (db as any).units.filter((u: any) => u.id !== id);
+    }
+    res.json({ success: true, message: 'Unit berhasil dihapus' });
   });
 
   // --- Shifts API ---
