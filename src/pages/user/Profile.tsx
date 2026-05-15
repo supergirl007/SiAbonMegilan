@@ -19,6 +19,8 @@ export default function UserProfile() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [employeeData, setEmployeeData] = useState<any>(null);
   const [alarmEnabled, setAlarmEnabled] = useState(localStorage.getItem('alarmEnabled') !== 'false');
+  const [alarmBeforeMinutes, setAlarmBeforeMinutes] = useState(parseInt(localStorage.getItem('alarmBeforeMinutes') || '10'));
+  const [alarmAfterMinutes, setAlarmAfterMinutes] = useState(parseInt(localStorage.getItem('alarmAfterMinutes') || '15'));
 
   // Password change state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -48,11 +50,39 @@ export default function UserProfile() {
     }
   }, [user.nip]);
 
+  const requestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  };
+
   const handleToggleAlarm = (checked: boolean) => {
     setAlarmEnabled(checked);
     localStorage.setItem('alarmEnabled', String(checked));
-    if (checked && 'Notification' in window) {
-      Notification.requestPermission();
+    if (checked) requestNotificationPermission();
+  };
+
+  const handleBeforeMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    requestNotificationPermission();
+    const val = parseInt(e.target.value);
+    if (!isNaN(val) && val >= 0) {
+      setAlarmBeforeMinutes(val);
+      localStorage.setItem('alarmBeforeMinutes', String(val));
+    } else if (e.target.value === '') {
+      setAlarmBeforeMinutes(0);
+      localStorage.setItem('alarmBeforeMinutes', '0');
+    }
+  };
+
+  const handleAfterMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    requestNotificationPermission();
+    const val = parseInt(e.target.value);
+    if (!isNaN(val) && val >= 0) {
+      setAlarmAfterMinutes(val);
+      localStorage.setItem('alarmAfterMinutes', String(val));
+    } else if (e.target.value === '') {
+      setAlarmAfterMinutes(0);
+      localStorage.setItem('alarmAfterMinutes', '0');
     }
   };
 
@@ -244,10 +274,39 @@ export default function UserProfile() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-slate-900 dark:text-slate-50">Alarm Pengingat Absensi</Label>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Pengingat 10 mnt sebelum & 15 mnt sesudah shift</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Aktifkan notifikasi untuk pengingat absensi masuk dan pulang shift</p>
             </div>
             <Switch checked={alarmEnabled} onCheckedChange={handleToggleAlarm} />
           </div>
+          
+          {alarmEnabled && (
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-slate-700 dark:text-slate-300">Pengingat Masuk (Menit Sebelum Shift)</Label>
+                <div className="w-24">
+                  <Input 
+                    type="number" 
+                    min="0"
+                    value={alarmBeforeMinutes} 
+                    onChange={handleBeforeMinutesChange}
+                    className="text-center"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-slate-700 dark:text-slate-300">Pengingat Pulang (Menit Sesudah Shift)</Label>
+                <div className="w-24">
+                  <Input 
+                    type="number" 
+                    min="0"
+                    value={alarmAfterMinutes} 
+                    onChange={handleAfterMinutesChange}
+                    className="text-center"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

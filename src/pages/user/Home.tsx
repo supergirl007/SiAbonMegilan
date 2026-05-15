@@ -55,6 +55,104 @@ export default function UserHome() {
   const [replacingFriendNip, setReplacingFriendNip] = useState<string | null>(localStorage.getItem('replacingFriendNip'));
 
   useEffect(() => {
+    const alarmEnabled = localStorage.getItem('alarmEnabled') !== 'false';
+    const alarmBeforeMinutes = parseInt(localStorage.getItem('alarmBeforeMinutes') || '10', 10);
+    const alarmAfterMinutes = parseInt(localStorage.getItem('alarmAfterMinutes') || '15', 10);
+    if (!alarmEnabled || shifts.length === 0) return;
+
+    let notifiedBefore = false;
+    let notifiedAfter = false;
+
+    const alarmInterval = setInterval(() => {
+      const now = new Date();
+      const activeShifts = resolveActiveShifts(shifts, user, employees);
+      let targetShift = activeShifts[0] || shifts[0];
+      
+      // Determine targetShift properly if already checked in
+      if (hasCheckedIn && activeShifts.length > 1 && checkInTime) {
+        let inHour = 0;
+        let inMin = 0;
+        const timeMatch = checkInTime.match(/(\d+)[.:](\d+)/);
+        if (timeMatch) {
+          inHour = parseInt(timeMatch[1], 10);
+          inMin = parseInt(timeMatch[2], 10);
+          const lowerTime = checkInTime.toLowerCase();
+          if (lowerTime.includes('pm') && inHour < 12) inHour += 12;
+          else if (lowerTime.includes('am') && inHour === 12) inHour = 0;
+        }
+        if (!isNaN(inHour) && !isNaN(inMin)) {
+          const checkInMinutes = inHour * 60 + inMin;
+          let minDiff = Infinity;
+          activeShifts.forEach(shift => {
+            const [startHour, startMin] = shift.startTime.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMin;
+            let diff = Math.abs(checkInMinutes - startMinutes);
+            if (diff > 720) diff = 1440 - diff;
+            if (diff < minDiff) {
+              minDiff = diff;
+              targetShift = shift;
+            }
+          });
+        }
+      }
+
+      if (!targetShift) return;
+
+      const [startHour, startMinute] = targetShift.startTime.split(':').map(Number);
+      let adjustedEndTime = targetShift.endTime;
+      if (now.getDay() === 5 && targetShift.fridayEndTime) {
+        adjustedEndTime = targetShift.fridayEndTime;
+      } else if (now.getDay() === 6 && targetShift.saturdayEndTime) {
+        adjustedEndTime = targetShift.saturdayEndTime;
+      }
+      const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
+
+      let shiftStart = new Date();
+      shiftStart.setHours(startHour, startMinute, 0, 0);
+      
+      let shiftEnd = new Date();
+      shiftEnd.setHours(endHour, endMinute, 0, 0);
+
+      if (startHour > endHour) {
+        if (now.getHours() >= startHour - 2) {
+          shiftEnd.setDate(shiftEnd.getDate() + 1);
+        } else {
+          shiftStart.setDate(shiftStart.getDate() - 1);
+        }
+      }
+
+      // Check before shift (masuk)
+      if (!hasCheckedIn) {
+        const diffBefore = shiftStart.getTime() - now.getTime();
+        if (diffBefore > 0 && diffBefore <= alarmBeforeMinutes * 60000 && !notifiedBefore) {
+          notifiedBefore = true;
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Pengingat Absensi Masuk', {
+              body: `Waktu absen masuk untuk shift ${targetShift.name} tinggal ${Math.ceil(diffBefore / 60000)} menit lagi.`,
+            });
+          }
+        }
+      }
+
+      // Check after shift (pulang)
+      if (hasCheckedIn && !hasCheckedOut) {
+        const diffAfter = now.getTime() - shiftEnd.getTime();
+        if (diffAfter > 0 && diffAfter >= alarmAfterMinutes * 60000 && !notifiedAfter) {
+          notifiedAfter = true;
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Pengingat Absensi Pulang', {
+              body: `Waktu absen pulang untuk shift ${targetShift.name} sudah lewat ${Math.floor(diffAfter / 60000)} menit. Segera lakukan absensi pulang.`,
+            });
+          }
+        }
+      }
+
+    }, 60000); // Check every minute
+
+    return () => clearInterval(alarmInterval);
+  }, [shifts, user, employees, hasCheckedIn, hasCheckedOut, checkInTime]);
+
+  useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
   }, []);
