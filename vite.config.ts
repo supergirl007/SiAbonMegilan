@@ -14,10 +14,11 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         workbox: {
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5MB
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+          navigateFallbackDenylist: [/^\/api/]
         },
         devOptions: {
-          enabled: true
+          enabled: false
         },
         manifest: {
           name: 'Si Abon Elite App',
@@ -53,5 +54,9 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    build: {
+      chunkSizeWarningLimit: 2000,
+    },
+    logLevel: 'error',
   };
 });

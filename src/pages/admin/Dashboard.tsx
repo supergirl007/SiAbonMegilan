@@ -40,7 +40,8 @@ export default function AdminDashboard() {
     if (action === 'reject') {
       finalStatus = 'Ditolak';
     } else {
-      if (type === 'izin' || type === 'sakit') finalStatus = 'izin';
+      if (type === 'izin') finalStatus = 'izin';
+      else if (type === 'sakit') finalStatus = 'Sakit';
       else if (type === 'Cuti' || type === 'cuti') finalStatus = 'Cuti';
       else if (type === 'dinas_luar') finalStatus = 'Dinas Luar';
     }
@@ -65,7 +66,11 @@ export default function AdminDashboard() {
         try {
           await fetch('/api/attendance/auto-checkout-check', { method: 'POST' });
         } catch (e) {
-          console.error('Failed auto-checkout check', e);
+          if (e instanceof TypeError && e.message.includes('fetch')) {
+            // Ignore
+          } else {
+            console.error('Failed auto-checkout check', e);
+          }
         }
         
         const [empRes, attRes, setRes, shiftRes] = await Promise.all([
@@ -180,6 +185,7 @@ export default function AdminDashboard() {
         const checkedOutNips = todayAttendance.filter((a: any) => a.type === 'out').map((a: any) => a.nip);
         setNotCheckedOut(employees.filter((e: any) => checkedInNips.includes(e.nip) && !checkedOutNips.includes(e.nip)));
       } catch (error) {
+        if (error instanceof TypeError && error.message.includes('fetch')) return;
         console.error('Failed to fetch data:', error);
       }
     };

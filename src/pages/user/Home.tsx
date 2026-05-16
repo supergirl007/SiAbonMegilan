@@ -10,6 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 
 import { format } from 'date-fns';
+import { getServerTime } from '@/lib/time';
+
+
+
+
 
 const resolveActiveShifts = (shifts: any[], user?: any, employees: any[] = []) => {
   const fullUser = user?.nip ? employees.find(e => e.nip === user.nip) || user : user;
@@ -64,7 +69,7 @@ export default function UserHome() {
     let notifiedAfter = false;
 
     const alarmInterval = setInterval(() => {
-      const now = new Date();
+      const now = getServerTime();
       const activeShifts = resolveActiveShifts(shifts, user, employees);
       let targetShift = activeShifts[0] || shifts[0];
       
@@ -107,10 +112,10 @@ export default function UserHome() {
       }
       const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
 
-      let shiftStart = new Date();
+      let shiftStart = getServerTime();
       shiftStart.setHours(startHour, startMinute, 0, 0);
       
-      let shiftEnd = new Date();
+      let shiftEnd = getServerTime();
       shiftEnd.setHours(endHour, endMinute, 0, 0);
 
       if (startHour > endHour) {
@@ -155,6 +160,8 @@ export default function UserHome() {
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     setUser(userData);
+    
+    
   }, []);
 
   useEffect(() => {
@@ -164,7 +171,11 @@ export default function UserHome() {
         try {
           await fetch('/api/attendance/auto-checkout-check', { method: 'POST' });
         } catch (e) {
-          console.error('Failed auto-checkout check', e);
+          if (e instanceof TypeError && e.message.includes('fetch')) {
+            // Ignore dev server restart networking errors
+          } else {
+            console.error('Failed auto-checkout check', e);
+          }
         }
 
         const [locRes, setRes, attRes, shiftRes, annRes, empRes] = await Promise.all([
@@ -199,7 +210,7 @@ export default function UserHome() {
         if (attRes.ok) {
           const data = await attRes.json();
           const userData = JSON.parse(localStorage.getItem('user') || '{}');
-          const today = format(new Date(), 'yyyy-MM-dd');
+          const today = format(getServerTime(), 'yyyy-MM-dd');
           
           let nipToCheck = userData.nip;
           const currentReplacingNip = localStorage.getItem('replacingFriendNip');
@@ -223,7 +234,7 @@ export default function UserHome() {
             }
             return false;
           });
-          const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+          const yesterday = format(new Date(getServerTime().getTime() - 86400000), 'yyyy-MM-dd');
           const userAttYesterday = data.filter((a: any) => a.nip === nipToCheck && a.date === yesterday);
           
           let inRecord = userAttToday.find((a: any) => a.type === 'in');
@@ -263,6 +274,10 @@ export default function UserHome() {
           }
         }
       } catch (err) {
+        if (err instanceof TypeError && err.message.includes('fetch')) {
+          // Suppress expected network errors when dev server restarts
+          return;
+        }
         console.error('Failed to fetch data:', err);
       }
     };
@@ -310,7 +325,7 @@ export default function UserHome() {
         }
 
         if (targetShift) {
-          const now = new Date();
+          const now = getServerTime();
           let adjustedEndTime = targetShift.endTime;
           
           // Use dynamic Friday/Saturday end times if configured
@@ -325,7 +340,7 @@ export default function UserHome() {
           const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
           const [startHour] = targetShift.startTime.split(':').map(Number);
           
-          let shiftEnd = new Date();
+          let shiftEnd = getServerTime();
           shiftEnd.setHours(endHour, endMinute, 0, 0);
           
           // Handle cross-midnight shifts properly
@@ -377,18 +392,18 @@ export default function UserHome() {
           return;
         }
 
-        const now = new Date();
+        const now = getServerTime();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
         let upcomingShift = null;
         let minTimeDiff = Infinity;
-        let upcomingShiftStart = new Date();
+        let upcomingShiftStart = getServerTime();
 
         activeShifts.forEach(shift => {
           const [startHour, startMin] = shift.startTime.split(':').map(Number);
           const startMinutes = startHour * 60 + startMin;
           
-          let shiftStart = new Date();
+          let shiftStart = getServerTime();
           shiftStart.setHours(startHour, startMin, 0, 0);
 
           // Jika jam shift lebih kecil dari jam sekarang, asumsikan itu untuk shift yang akan datang (mungkin besok)
@@ -497,7 +512,7 @@ export default function UserHome() {
         
         if (!targetShift) return;
 
-        const now = new Date();
+        const now = getServerTime();
         let adjustedEndTime = targetShift.endTime;
         
         if (now.getDay() === 5 && targetShift.fridayEndTime) {
@@ -509,7 +524,7 @@ export default function UserHome() {
         const [endHour, endMinute] = adjustedEndTime.split(':').map(Number);
         const [startHour] = targetShift.startTime.split(':').map(Number);
         
-        let shiftEnd = new Date();
+        let shiftEnd = getServerTime();
         shiftEnd.setHours(endHour, endMinute, 0, 0);
         
         if (startHour > endHour) {
@@ -884,7 +899,7 @@ export default function UserHome() {
       const checkRes = await fetch('/api/attendance');
       if (checkRes.ok) {
         const checkData = await checkRes.json();
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const todayStr = format(getServerTime(), 'yyyy-MM-dd');
         
         if (submitType === 'in') {
           const personAtt = checkData.filter((a: any) => {
@@ -922,8 +937,8 @@ export default function UserHome() {
         body: JSON.stringify({
           nip: submitNip,
           name: submitName,
-          date: submitType === 'out' ? (localStorage.getItem('lastCheckInDate') || format(new Date(), 'yyyy-MM-dd')) : format(new Date(), 'yyyy-MM-dd'),
-          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          date: submitType === 'out' ? (localStorage.getItem('lastCheckInDate') || format(getServerTime(), 'yyyy-MM-dd')) : format(getServerTime(), 'yyyy-MM-dd'),
+          time: getServerTime().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           type: submitType,
           location: { lat: location.lat, lng: location.lng, address: address },
           status: (isTambahJaga || replacingFriendNip) ? 'Hadir (Ganti Jaga)' : (isEarlyCheckout ? 'Hadir (Pulang Cepat)' : 'Hadir'),
@@ -956,7 +971,7 @@ export default function UserHome() {
       if (attRes.ok) {
         const data = await attRes.json();
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        const today = format(new Date(), 'yyyy-MM-dd');
+        const today = format(getServerTime(), 'yyyy-MM-dd');
         
         let nipToCheck = userData.nip;
         if (nextReplacingNip) {

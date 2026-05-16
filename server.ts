@@ -628,6 +628,12 @@ async function startServer() {
     res.json({ success: true, message: 'Pendaftaran berhasil' });
   });
 
+  app.get('/api/time', (req, res) => {
+    // Return server time for client synchronization
+    // Use Asia/Jakarta explicitly if needed, but returning timestamp is enough
+    res.json({ timestamp: Date.now() });
+  });
+
   app.get('/api/attendance', async (req, res) => {
     const { startDate, endDate } = req.query;
     
@@ -652,7 +658,9 @@ async function startServer() {
                 catch (e) { return row.get('location'); }
               })(),
               status: row.get('status'),
-              photoUrl: row.get('photoUrl'),
+              photoUrl: row.get('photoUrl') && row.get('photoUrl').startsWith('data:image') 
+                ? `/api/attendance/${row.get('id')}/photo`
+                : (row.get('photoUrl') || ''),
               shift: row.get('shift')
             }));
             cache['attendance'] = { timestamp: Date.now(), data: allAttendance };
@@ -688,6 +696,38 @@ async function startServer() {
     }
 
     return res.json(filteredAttendance);
+  });
+
+  app.get('/api/attendance/:id/photo', async (req, res) => {
+    try {
+      const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl', 'shift']);
+      if (!sheet) return res.status(500).send('Database unavailable');
+      
+      const rows = await sheet.getRows();
+      const targetRow = rows.find(row => row.get('id') === req.params.id);
+      
+      if (!targetRow) return res.status(404).send('Not found');
+      
+      const photoUrl = targetRow.get('photoUrl');
+      if (!photoUrl || !photoUrl.startsWith('data:image')) {
+        return res.status(404).send('No image for this record');
+      }
+      
+      // photoUrl format is usually like: data:image/jpeg;base64,/9j/4AAQ...
+      const matches = photoUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+         return res.status(400).send('Invalid image data');
+      }
+      
+      const mimeType = matches[1];
+      const buffer = Buffer.from(matches[2], 'base64');
+      
+      res.set('Content-Type', mimeType);
+      res.send(buffer);
+    } catch (e) {
+      console.error(e);
+      res.status(500).send('Internal error');
+    }
   });
 
   app.post('/api/attendance', async (req, res) => {

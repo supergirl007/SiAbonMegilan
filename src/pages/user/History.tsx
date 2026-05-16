@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
+import { getServerTime } from '@/lib/time';
 
 export default function UserHistory() {
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [date, setDate] = useState<Date | undefined>(getServerTime());
+  const [currentMonth, setCurrentMonth] = useState<Date>(getServerTime());
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -26,6 +27,7 @@ export default function UserHistory() {
           setAttendanceData(userAttendance);
         }
       } catch (error) {
+        if (error instanceof TypeError && error.message.includes('fetch')) return;
         console.error('Failed to fetch attendance:', error);
       }
     };

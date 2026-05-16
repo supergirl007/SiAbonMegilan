@@ -97,7 +97,11 @@ export default function AdminAttendance() {
       try {
         await fetch('/api/attendance/auto-checkout-check', { method: 'POST' });
       } catch (e) {
-        console.error('Failed auto-checkout check', e);
+        if (e instanceof TypeError && e.message.includes('fetch')) {
+          // Ignore
+        } else {
+          console.error('Failed auto-checkout check', e);
+        }
       }
       
       const response = await fetch(`/api/attendance?startDate=${startDate}&endDate=${endDate}`);
@@ -106,6 +110,7 @@ export default function AdminAttendance() {
         setAttendanceData(data);
       }
     } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) return;
       console.error('Failed to fetch attendance:', error);
     }
   };
@@ -771,7 +776,8 @@ export default function AdminAttendance() {
 
   const handleApproveLeave = async (id: string, type: string) => {
     let finalStatus = 'Hadir'; // fallback
-    if (type === 'izin' || type === 'sakit') finalStatus = 'izin';
+    if (type === 'izin') finalStatus = 'izin';
+    else if (type === 'sakit') finalStatus = 'Sakit';
     else if (type === 'Cuti' || type === 'cuti') finalStatus = 'Cuti';
     else if (type === 'dinas_luar') finalStatus = 'Dinas Luar';
     
@@ -903,6 +909,7 @@ export default function AdminAttendance() {
     worksheet.getCell(lastRow + 4, 1).value = 'C = Cuti';
     worksheet.getCell(lastRow + 5, 1).value = 'S = Sakit';
     worksheet.getCell(lastRow + 6, 1).value = 'D = Dinas Luar';
+    worksheet.getCell(lastRow + 7, 1).value = 'I = Izin Pribadi';
 
     // Add Signature
     // Place signature on the right side of the table

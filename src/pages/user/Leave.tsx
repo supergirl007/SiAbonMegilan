@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { getServerTime } from '@/lib/time';
 
 export default function UserLeave() {
   const navigate = useNavigate();
@@ -152,7 +153,7 @@ export default function UserLeave() {
       } else {
         // Auto approve immediately
         if (type === 'izin') status = 'izin';
-        else if (type === 'sakit') status = 'izin';
+        else if (type === 'sakit') status = 'Sakit';
         else if (type === 'Cuti') status = 'Cuti';
         else if (type === 'dinas_luar') status = 'Dinas Luar';
       }
@@ -173,7 +174,7 @@ export default function UserLeave() {
           nip: user?.nip || 'N/A',
           name: user?.name || 'N/A',
           date: startDate,
-          time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          time: getServerTime().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
           type: type,
           location: { lat, lng, reason, endDate }, 
           status: status,

@@ -20,6 +20,7 @@ import AdminAttendance from './pages/admin/Attendance';
 import AdminEmployees from './pages/admin/Employees';
 import AdminSettings from './pages/admin/Settings';
 import { useEffect } from 'react';
+import { syncServerTime } from '@/lib/time';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const loginTime = localStorage.getItem('loginTime');
@@ -41,6 +42,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+   useEffect(() => {
+    syncServerTime();
+    // Re-sync every 30 minutes
+    const interval = setInterval(syncServerTime, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <Router>
       <Routes>
