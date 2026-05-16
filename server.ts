@@ -32,12 +32,12 @@ async function startServer() {
       { id: 1, name: 'Kantor Induk', lat: -7.250445, lng: 112.768845, radius: 300 },
     ],
     settings: {
-      appName: 'Si Abon Eiite App',
+      appName: 'Si Abon ELite App',
       companyName: 'Puskesmas Sehat',
       headName: 'Dr. Budi Santoso',
       address: 'Jl. Kesehatan No. 1, Kota Sehat',
       mainLocation: '-7.250445, 112.768845',
-      tolerance: 15,
+      tolerance: 25,
     }
   };
 
@@ -694,6 +694,24 @@ async function startServer() {
     const attendanceData = req.body;
     // attendanceData: { nip, name, date, time, type, location, status, photoUrl }
     
+    // Prevent overriding timezone from client. Enforce Server Time (Asia/Jakarta)
+    if (attendanceData.type === 'in' || attendanceData.type === 'out') {
+      const now = new Date();
+      
+      const timeFormatter = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+      let serverTimeStr = timeFormatter.format(now).replace('.', ':');
+      attendanceData.time = serverTimeStr;
+
+      if (attendanceData.type === 'in') {
+        const dateFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' });
+        const parts = dateFormatter.formatToParts(now);
+        const year = parts.find(p => p.type === 'year')?.value;
+        const month = parts.find(p => p.type === 'month')?.value;
+        const day = parts.find(p => p.type === 'day')?.value;
+        attendanceData.date = `${year}-${month}-${day}`;
+      }
+    }
+
     if (doc) {
       try {
         const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl']);
@@ -1150,7 +1168,7 @@ async function startServer() {
             kecamatan: row.get('kecamatan') || '',
             kabupaten: row.get('kabupaten') || '',
             coordinates: row.get('coordinates'),
-            radius: row.get('radius') || 100
+            radius: row.get('radius') || 250
           }));
           cache['locations'] = { data: locations, timestamp: Date.now() };
           return res.json(locations);
@@ -1160,8 +1178,8 @@ async function startServer() {
       }
     }
     res.json([
-      { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 100 },
-      { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 100 }
+      { id: "1", desa: "Kantor Induk", kecamatan: "", kabupaten: "", coordinates: "-7.1234, 112.1234", radius: 250 },
+      { id: "2", desa: "Pustu A", kecamatan: "", kabupaten: "", coordinates: "-7.1235, 112.1235", radius: 250 }
     ]);
   });
 
@@ -1178,7 +1196,7 @@ async function startServer() {
             kecamatan: location.kecamatan || '',
             kabupaten: location.kabupaten || '',
             coordinates: location.coordinates || '',
-            radius: location.radius || 100
+            radius: location.radius || 250
           });
           delete cache['locations'];
         }

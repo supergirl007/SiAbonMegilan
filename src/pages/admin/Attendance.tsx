@@ -313,13 +313,21 @@ export default function AdminAttendance() {
       let statusInfo = { code: '-', hours: 0, onlyIn: false, bgColor: '' };
 
       if (leaveRecord) {
-        if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') statusInfo.code = 'I';
+        if (leaveRecord.status === 'izin' || leaveRecord.type === 'izin') {
+          statusInfo.code = 'I';
+          const dayNumber = getLeaveDayNumber(leaveRecord, date);
+          statusInfo.hours = dayNumber <= 3 ? (6 + 25/60) : 0;
+        }
         else if (leaveRecord.status === 'Sakit' || leaveRecord.type === 'sakit') {
           statusInfo.code = 'S';
           const dayNumber = getLeaveDayNumber(leaveRecord, date);
           statusInfo.hours = dayNumber <= 3 ? (6 + 25/60) : 0;
         }
-        else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') statusInfo.code = 'C';
+        else if (leaveRecord.status === 'Cuti' || leaveRecord.type === 'Cuti') {
+          statusInfo.code = 'C';
+          const dayNumber = getLeaveDayNumber(leaveRecord, date);
+          statusInfo.hours = dayNumber <= 3 ? (6 + 25/60) : 0;
+        }
         else if (leaveRecord.status === 'Dinas Luar' || leaveRecord.type === 'dinas_luar') {
           statusInfo.code = 'D';
           const dayNumber = getLeaveDayNumber(leaveRecord, date);
