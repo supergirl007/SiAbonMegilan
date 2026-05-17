@@ -1,3 +1,4 @@
+import { getServerTime } from '@/lib/time';
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,7 +142,7 @@ export default function AdminSettings() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Data_User_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    a.download = `Data_User_${format(getServerTime(), 'yyyy-MM-dd')}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success("Data User berhasil diekspor!");
@@ -159,7 +160,7 @@ export default function AdminSettings() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Data_Absensi_Semua_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    a.download = `Data_Absensi_Semua_${format(getServerTime(), 'yyyy-MM-dd')}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
     toast.success("Data Absensi berhasil diekspor!");

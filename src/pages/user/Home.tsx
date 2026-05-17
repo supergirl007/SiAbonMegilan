@@ -36,6 +36,7 @@ export default function UserHome() {
   const [isLocating, setIsLocating] = useState(true);
   const [canRefresh, setCanRefresh] = useState(false);
   const [isAbsenting, setIsAbsenting] = useState(false);
+  const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWithinRange, setIsWithinRange] = useState(false);
   const [address, setAddress] = useState<string>('');
@@ -279,6 +280,8 @@ export default function UserHome() {
           return;
         }
         console.error('Failed to fetch data:', err);
+      } finally {
+        setIsInitialDataLoaded(true);
       }
     };
     fetchData();
@@ -1153,10 +1156,10 @@ export default function UserHome() {
 
                 <Button
                   onClick={() => (!isWithinRange && !hasCheckedIn) ? navigate('/user/leave') : handleAbsen(false)}
-                  disabled={!location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip) || (hasCheckedIn && !canCheckOut) || (hasCheckedIn && !isWithinRange)}
+                  disabled={!isInitialDataLoaded || !location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip) || (hasCheckedIn && !canCheckOut) || (hasCheckedIn && !isWithinRange)}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {isAbsenting ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
+                  {(!isInitialDataLoaded || isAbsenting) ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
 
                 {hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga && !replacingFriendNip && settings?.absensiSettings?.enableEarlyCheckout !== false && (

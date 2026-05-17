@@ -1,3 +1,4 @@
+import { getServerTime } from '@/lib/time';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Clock, UserX } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -137,7 +138,7 @@ export default function AdminDashboard() {
             }
           });
 
-          const now = new Date();
+          const now = getServerTime();
           const day = now.getDay();
           let endTimeStr = bestShift.endTime;
           if (day === 5 && bestShift.fridayEndTime) {
@@ -153,7 +154,7 @@ export default function AdminDashboard() {
           };
         };
 
-        const today = format(new Date(), 'yyyy-MM-dd');
+        const today = format(getServerTime(), 'yyyy-MM-dd');
         const todayAttendance = attendance.filter((a: any) => {
           if (a.date === today) return true;
           if (a.location && typeof a.location === 'object' && a.location.endDate) {
