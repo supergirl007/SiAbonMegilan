@@ -44,10 +44,30 @@ async function startServer() {
   // Google Spreadsheet Setup
   let doc: GoogleSpreadsheet | null = null;
   let isDocLoaded = false;
+  let docLoadPromise: Promise<void> | null = null;
   
   // Cache for spreadsheet data
   const cache: { [key: string]: { data: any; timestamp: number } } = {};
-  const CACHE_DURATION = 60 * 1000; // 1 minute cache
+  const inFlightRequests: { [key: string]: Promise<any> } = {};
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  const syncedSheets = new Set<string>();
+  
+  async function getCachedData(key: string, fetchFn: () => Promise<any>) {
+    if (cache[key] && Date.now() - cache[key].timestamp < CACHE_DURATION) {
+      return cache[key].data;
+    }
+    if (inFlightRequests[key]) {
+      return inFlightRequests[key];
+    }
+    const promise = fetchFn().then(data => {
+      cache[key] = { data, timestamp: Date.now() };
+      return data;
+    }).finally(() => {
+      delete inFlightRequests[key];
+    });
+    inFlightRequests[key] = promise;
+    return promise;
+  }
   if (process.env.SPREADSHEET_ID && process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     try {
       const privateKey = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
@@ -78,8 +98,17 @@ async function startServer() {
     try {
       // Ensure doc is loaded
       if (!isDocLoaded) {
-        await doc.loadInfo();
-        isDocLoaded = true;
+        if (!docLoadPromise) {
+          docLoadPromise = (async () => {
+            try {
+              if (doc) await doc.loadInfo();
+              isDocLoaded = true;
+            } finally {
+              docLoadPromise = null;
+            }
+          })();
+        }
+        await docLoadPromise;
       }
       const sheet = doc.sheetsByTitle[title];
       if (!sheet) {
@@ -98,7 +127,8 @@ async function startServer() {
     let sheet = await getSheet(title);
     if (!sheet && doc) {
       sheet = await doc.addSheet({ title, headerValues });
-    } else if (sheet) {
+      syncedSheets.add(title);
+    } else if (sheet && !syncedSheets.has(title)) {
       try {
         await sheet.loadHeaderRow();
         const currentHeaders = sheet.headerValues;
@@ -113,9 +143,11 @@ async function startServer() {
         if (headersChanged) {
           await sheet.setHeaderRow(newHeaders);
         }
+        syncedSheets.add(title);
       } catch (e) {
         // If sheet is empty, loadHeaderRow might throw. Set headers directly.
         await sheet.setHeaderRow(headerValues);
+        syncedSheets.add(title);
       }
     }
     return sheet;
@@ -127,29 +159,28 @@ async function startServer() {
   app.get('/api/employees', async (req, res) => {
     if (doc) {
       try {
-        if (cache['employees'] && Date.now() - cache['employees'].timestamp < CACHE_DURATION) {
-          return res.json(cache['employees'].data);
-        }
-        const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const employees = rows.map(row => ({
-            id: row.get('id'),
-            name: row.get('name'),
-            nip: row.get('nip'),
-            office: row.get('office'),
-            office2: row.get('office2'),
-            email: row.get('email'),
-            gender: row.get('gender'),
-            cluster: row.get('cluster'),
-            unit: row.get('unit'),
-            password: row.get('password'),
-            photoUrl: row.get('photoUrl'),
-            photoUploadCount: row.get('photoUploadCount') ? parseInt(row.get('photoUploadCount'), 10) : 0
-          }));
-          cache['employees'] = { data: employees, timestamp: Date.now() };
-          return res.json(employees);
-        }
+        const employees = await getCachedData('employees', async () => {
+          const sheet = await getOrCreateSheet('Employees', ['id', 'name', 'nip', 'office', 'office2', 'email', 'gender', 'cluster', 'unit', 'password', 'photoUrl', 'photoUploadCount']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              name: row.get('name'),
+              nip: row.get('nip'),
+              office: row.get('office'),
+              office2: row.get('office2'),
+              email: row.get('email'),
+              gender: row.get('gender'),
+              cluster: row.get('cluster'),
+              unit: row.get('unit'),
+              password: row.get('password'),
+              photoUrl: row.get('photoUrl'),
+              photoUploadCount: row.get('photoUploadCount') ? parseInt(row.get('photoUploadCount'), 10) : 0
+            }));
+          }
+          return [];
+        });
+        return res.json(employees);
       } catch (error) {
         console.error('Error fetching employees from spreadsheet:', error);
       }
@@ -295,26 +326,25 @@ async function startServer() {
   app.get('/api/admins', async (req, res) => {
     if (doc) {
       try {
-        if (cache['admins'] && Date.now() - cache['admins'].timestamp < CACHE_DURATION) {
-          return res.json(cache['admins'].data);
-        }
-        const sheet = await getOrCreateSheet('Admins', ['id', 'name', 'nip', 'email', 'phone', 'group', 'isActive', 'access', 'password']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const admins = rows.map(row => ({
-            id: row.get('id'),
-            name: row.get('name'),
-            nip: row.get('nip'),
-            email: row.get('email'),
-            phone: row.get('phone'),
-            group: row.get('group'),
-            isActive: String(row.get('isActive')).toLowerCase() === 'true',
-            access: row.get('access') ? JSON.parse(row.get('access')) : [],
-            password: row.get('password')
-          }));
-          cache['admins'] = { data: admins, timestamp: Date.now() };
-          return res.json(admins);
-        }
+        const admins = await getCachedData('admins', async () => {
+          const sheet = await getOrCreateSheet('Admins', ['id', 'name', 'nip', 'email', 'phone', 'group', 'isActive', 'access', 'password']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              name: row.get('name'),
+              nip: row.get('nip'),
+              email: row.get('email'),
+              phone: row.get('phone'),
+              group: row.get('group'),
+              isActive: String(row.get('isActive')).toLowerCase() === 'true',
+              access: row.get('access') ? JSON.parse(row.get('access')) : [],
+              password: row.get('password')
+            }));
+          }
+          return [];
+        });
+        return res.json(admins);
       } catch (error) {
         console.error('Error fetching admins from spreadsheet:', error);
       }
@@ -493,6 +523,7 @@ async function startServer() {
       try {
         const sheetName = role === 'admin' ? 'Admins' : 'Users';
         const sheet = await getSheet(sheetName);
+        let userNip = null;
         if (sheet) {
           const rows = await sheet.getRows();
           const userRow = rows.find(r => r.get('id') === id && String(r.get('password')) === String(oldPassword));
@@ -501,6 +532,20 @@ async function startServer() {
             userRow.set('password', newPassword);
             await userRow.save();
             passwordUpdated = true;
+            userNip = userRow.get('nip'); // Capture NIP to sync with Employees
+            
+            // Sync with employees sheet
+            if (role !== 'admin' && userNip) {
+              const empSheet = await getSheet('Employees');
+              if (empSheet) {
+                const empRows = await empSheet.getRows();
+                const empRow = empRows.find(r => r.get('nip') === userNip);
+                if (empRow) {
+                  empRow.set('password', newPassword);
+                  await empRow.save();
+                }
+              }
+            }
           } else {
             return res.status(400).json({ success: false, message: 'Password lama salah' });
           }
@@ -517,6 +562,13 @@ async function startServer() {
         if (user.password === oldPassword) {
           user.password = newPassword;
           passwordUpdated = true;
+          // Sync with local employees db as well if mock
+          if (role !== 'admin' && user.nip) {
+            const emp = db.employees.find(e => e.nip === user.nip);
+            if (emp) {
+              (emp as any).password = newPassword;
+            }
+          }
         } else {
           return res.status(400).json({ success: false, message: 'Password lama salah' });
         }
@@ -640,13 +692,11 @@ async function startServer() {
     let allAttendance: any[] = [];
     if (doc) {
       try {
-        if (cache['attendance'] && Date.now() - cache['attendance'].timestamp < CACHE_DURATION) {
-          allAttendance = cache['attendance'].data;
-        } else {
+        allAttendance = await getCachedData('attendance', async () => {
           const sheet = await getOrCreateSheet('Attendance', ['id', 'nip', 'name', 'date', 'time', 'type', 'location', 'status', 'photoUrl', 'shift']);
           if (sheet) {
             const rows = await sheet.getRows();
-            allAttendance = rows.map(row => ({
+            return rows.map(row => ({
               id: row.get('id'),
               nip: row.get('nip'),
               name: row.get('name'),
@@ -663,9 +713,9 @@ async function startServer() {
                 : (row.get('photoUrl') || ''),
               shift: row.get('shift')
             }));
-            cache['attendance'] = { timestamp: Date.now(), data: allAttendance };
           }
-        }
+          return [];
+        });
       } catch (error) {
         console.error('Error fetching attendance from spreadsheet:', error);
       }
@@ -1152,6 +1202,21 @@ async function startServer() {
               await userRow.save();
               passwordUpdated = true;
               
+              if (userType === 'user') {
+                const userNip = userRow.get('nip');
+                if (userNip) {
+                  const empSheet = await getSheet('Employees');
+                  if (empSheet) {
+                    const empRows = await empSheet.getRows();
+                    const empRow = empRows.find(r => r.get('nip') === userNip);
+                    if (empRow) {
+                      empRow.set('password', newPassword);
+                      await empRow.save();
+                    }
+                  }
+                }
+              }
+              
               // Clear cache
               if (sheetName === 'Admins') delete cache['admins'];
               if (sheetName === 'Employees') delete cache['employees'];
@@ -1196,23 +1261,22 @@ async function startServer() {
   app.get('/api/locations', async (req, res) => {
     if (doc) {
       try {
-        if (cache['locations'] && Date.now() - cache['locations'].timestamp < CACHE_DURATION) {
-          return res.json(cache['locations'].data);
-        }
-        const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const locations = rows.map(row => ({
-            id: row.get('id'),
-            desa: row.get('desa') || row.get('name') || '',
-            kecamatan: row.get('kecamatan') || '',
-            kabupaten: row.get('kabupaten') || '',
-            coordinates: row.get('coordinates'),
-            radius: row.get('radius') || 250
-          }));
-          cache['locations'] = { data: locations, timestamp: Date.now() };
-          return res.json(locations);
-        }
+        const locations = await getCachedData('locations', async () => {
+          const sheet = await getOrCreateSheet('Locations', ['id', 'name', 'desa', 'kecamatan', 'kabupaten', 'coordinates', 'radius']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              desa: row.get('desa') || row.get('name') || '',
+              kecamatan: row.get('kecamatan') || '',
+              kabupaten: row.get('kabupaten') || '',
+              coordinates: row.get('coordinates'),
+              radius: row.get('radius') || 250
+            }));
+          }
+          return [];
+        });
+        return res.json(locations);
       } catch (error) {
         console.error('Error fetching locations from spreadsheet:', error);
       }
@@ -1271,19 +1335,18 @@ async function startServer() {
   app.get('/api/units', async (req, res) => {
     if (doc) {
       try {
-        if (cache['units'] && Date.now() - cache['units'].timestamp < CACHE_DURATION) {
-          return res.json(cache['units'].data);
-        }
-        const sheet = await getOrCreateSheet('Units', ['id', 'name']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const units = rows.map(row => ({
-            id: row.get('id'),
-            name: row.get('name')
-          }));
-          cache['units'] = { data: units, timestamp: Date.now() };
-          return res.json(units);
-        }
+        const units = await getCachedData('units', async () => {
+          const sheet = await getOrCreateSheet('Units', ['id', 'name']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              name: row.get('name')
+            }));
+          }
+          return [];
+        });
+        return res.json(units);
       } catch (error) {
         console.error('Error fetching units:', error);
       }
@@ -1351,30 +1414,29 @@ async function startServer() {
   app.get('/api/shifts', async (req, res) => {
     if (doc) {
       try {
-        if (cache['shifts'] && Date.now() - cache['shifts'].timestamp < CACHE_DURATION) {
-          return res.json(cache['shifts'].data);
-        }
-        const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'fridayEndTime', 'saturdayEndTime', 'checkInBeforeMinutes', 'checkInAfterMinutes', 'checkOutBeforeMinutes', 'checkOutAfterMinutes', 'crossesMidnight', 'isActive', 'unit']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const shifts = rows.map(row => ({
-            id: row.get('id'),
-            name: row.get('name'),
-            startTime: row.get('startTime'),
-            endTime: row.get('endTime'),
-            fridayEndTime: row.get('fridayEndTime') || '',
-            saturdayEndTime: row.get('saturdayEndTime') || '',
-            checkInBeforeMinutes: parseInt(row.get('checkInBeforeMinutes') || '60'),
-            checkInAfterMinutes: parseInt(row.get('checkInAfterMinutes') || '15'),
-            checkOutBeforeMinutes: parseInt(row.get('checkOutBeforeMinutes') || '10'),
-            checkOutAfterMinutes: parseInt(row.get('checkOutAfterMinutes') || '120'),
-            crossesMidnight: String(row.get('crossesMidnight')).toLowerCase() === 'true',
-            isActive: String(row.get('isActive')).toLowerCase() === 'true',
-            unit: row.get('unit') || ''
-          }));
-          cache['shifts'] = { timestamp: Date.now(), data: shifts };
-          return res.json(shifts);
-        }
+        const shifts = await getCachedData('shifts', async () => {
+          const sheet = await getOrCreateSheet('Shifts', ['id', 'name', 'startTime', 'endTime', 'fridayEndTime', 'saturdayEndTime', 'checkInBeforeMinutes', 'checkInAfterMinutes', 'checkOutBeforeMinutes', 'checkOutAfterMinutes', 'crossesMidnight', 'isActive', 'unit']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              name: row.get('name'),
+              startTime: row.get('startTime'),
+              endTime: row.get('endTime'),
+              fridayEndTime: row.get('fridayEndTime') || '',
+              saturdayEndTime: row.get('saturdayEndTime') || '',
+              checkInBeforeMinutes: parseInt(row.get('checkInBeforeMinutes') || '60'),
+              checkInAfterMinutes: parseInt(row.get('checkInAfterMinutes') || '15'),
+              checkOutBeforeMinutes: parseInt(row.get('checkOutBeforeMinutes') || '10'),
+              checkOutAfterMinutes: parseInt(row.get('checkOutAfterMinutes') || '120'),
+              crossesMidnight: String(row.get('crossesMidnight')).toLowerCase() === 'true',
+              isActive: String(row.get('isActive')).toLowerCase() === 'true',
+              unit: row.get('unit') || ''
+            }));
+          }
+          return [];
+        });
+        return res.json(shifts);
       } catch (error) {
         console.error('Error fetching shifts from spreadsheet:', error);
       }
@@ -1468,23 +1530,22 @@ async function startServer() {
   app.get('/api/announcements', async (req, res) => {
     if (doc) {
       try {
-        if (cache['announcements'] && Date.now() - cache['announcements'].timestamp < CACHE_DURATION) {
-          return res.json(cache['announcements'].data);
-        }
-        const sheet = await getOrCreateSheet('Announcements', ['id', 'title', 'content', 'date', 'expiryDate', 'isActive']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const announcements = rows.map(row => ({
-            id: row.get('id'),
-            title: row.get('title'),
-            content: row.get('content'),
-            date: row.get('date'),
-            expiryDate: row.get('expiryDate'),
-            isActive: String(row.get('isActive')).toLowerCase() === 'true'
-          }));
-          cache['announcements'] = { timestamp: Date.now(), data: announcements };
-          return res.json(announcements);
-        }
+        const announcements = await getCachedData('announcements', async () => {
+          const sheet = await getOrCreateSheet('Announcements', ['id', 'title', 'content', 'date', 'expiryDate', 'isActive']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              title: row.get('title'),
+              content: row.get('content'),
+              date: row.get('date'),
+              expiryDate: row.get('expiryDate'),
+              isActive: String(row.get('isActive')).toLowerCase() === 'true'
+            }));
+          }
+          return [];
+        });
+        return res.json(announcements);
       } catch (error) {
         console.error('Error fetching announcements from spreadsheet:', error);
       }
@@ -1561,20 +1622,19 @@ async function startServer() {
   app.get('/api/holidays', async (req, res) => {
     if (doc) {
       try {
-        if (cache['holidays'] && Date.now() - cache['holidays'].timestamp < CACHE_DURATION) {
-          return res.json(cache['holidays'].data);
-        }
-        const sheet = await getOrCreateSheet('Holidays', ['id', 'date', 'name']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const items = rows.map(row => ({
-            id: row.get('id'),
-            date: row.get('date'),
-            name: row.get('name')
-          }));
-          cache['holidays'] = { data: items, timestamp: Date.now() };
-          return res.json(items);
-        }
+        const items = await getCachedData('holidays', async () => {
+          const sheet = await getOrCreateSheet('Holidays', ['id', 'date', 'name']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            return rows.map(row => ({
+              id: row.get('id'),
+              date: row.get('date'),
+              name: row.get('name')
+            }));
+          }
+          return [];
+        });
+        return res.json(items);
       } catch (error) {
         console.error('Error fetching from spreadsheet:', error);
       }
@@ -1631,24 +1691,24 @@ async function startServer() {
   app.get('/api/settings', async (req, res) => {
     if (doc) {
       try {
-        if (cache['settings'] && Date.now() - cache['settings'].timestamp < CACHE_DURATION) {
-          return res.json(cache['settings'].data);
-        }
-        const sheet = await getOrCreateSheet('Settings', ['key', 'value']);
-        if (sheet) {
-          const rows = await sheet.getRows();
-          const settings: any = {};
-          rows.forEach(row => {
-            try {
-              settings[row.get('key')] = JSON.parse(row.get('value'));
-            } catch (e) {
-              settings[row.get('key')] = row.get('value');
-            }
-          });
-          if (Object.keys(settings).length > 0) {
-            cache['settings'] = { timestamp: Date.now(), data: settings };
-            return res.json(settings);
+        const settingsPayload = await getCachedData('settings', async () => {
+          const sheet = await getOrCreateSheet('Settings', ['key', 'value']);
+          if (sheet) {
+            const rows = await sheet.getRows();
+            const settings: any = {};
+            rows.forEach(row => {
+              try {
+                settings[row.get('key')] = JSON.parse(row.get('value'));
+              } catch (e) {
+                settings[row.get('key')] = row.get('value');
+              }
+            });
+            return settings;
           }
+          return {};
+        });
+        if (Object.keys(settingsPayload).length > 0) {
+          return res.json(settingsPayload);
         }
       } catch (error) {
         console.error('Error fetching settings from spreadsheet:', error);

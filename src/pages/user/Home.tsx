@@ -59,6 +59,7 @@ export default function UserHome() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [selectedFriendNip, setSelectedFriendNip] = useState<string>('');
   const [replacingFriendNip, setReplacingFriendNip] = useState<string | null>(localStorage.getItem('replacingFriendNip'));
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
 
   useEffect(() => {
     const alarmEnabled = localStorage.getItem('alarmEnabled') !== 'false';
@@ -210,6 +211,7 @@ export default function UserHome() {
         }
         if (attRes.ok) {
           const data = await attRes.json();
+          setAttendanceData(data);
           const userData = JSON.parse(localStorage.getItem('user') || '{}');
           const today = format(getServerTime(), 'yyyy-MM-dd');
           
@@ -381,13 +383,15 @@ export default function UserHome() {
   }, [hasCheckedIn, hasCheckedOut, shifts, checkInTime, user, employees]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    const intervals: NodeJS.Timeout[] = [];
     
-    // Timer untuk Absen Masuk (jika belum absen masuk)
-    if (!hasCheckedIn && shifts.length > 0) {
+    // Timer untuk Absen Masuk (selalu berjalan agar canCheckIn uptodate untuk ganti jaga)
+    if (shifts.length > 0) {
       const isCountdownEnabled = settings?.absensiSettings?.enableCountdown !== false;
       
-      const activeShifts = resolveActiveShifts(shifts, user, employees);
+      const applyUser = (isTambahJaga && selectedFriendNip) ? employees.find(e => e.nip === selectedFriendNip) : user;
+      const activeShifts = resolveActiveShifts(shifts, applyUser, employees);
+      
       const calculateCheckInCountdown = () => {
         if (!isCountdownEnabled) {
           setCanCheckIn(true);
@@ -432,7 +436,7 @@ export default function UserHome() {
           
           // Alarm logic
           const diffMsStart = upcomingShiftStart.getTime() - now.getTime();
-          if (diffMsStart <= 10 * 60000 && diffMsStart > 9 * 60000) {
+          if (diffMsStart <= 10 * 60000 && diffMsStart > 9 * 60000 && !hasCheckedIn && !isTambahJaga && !replacingFriendNip) {
             checkAndFireAlarm(
               'Pengingat Absensi', 
               'Shift Anda akan mulai dalam 10 menit. Jangan lupa absen masuk!', 
@@ -440,7 +444,7 @@ export default function UserHome() {
             );
           }
 
-          if (diffMsStart <= -15 * 60000 && diffMsStart > -16 * 60000 && !hasCheckedIn) {
+          if (diffMsStart <= -15 * 60000 && diffMsStart > -16 * 60000 && !hasCheckedIn && !isTambahJaga && !replacingFriendNip) {
             const day = now.getDay();
             if (day >= 1 && day <= 5) {
               checkAndFireAlarm(
@@ -470,7 +474,7 @@ export default function UserHome() {
       };
 
       calculateCheckInCountdown();
-      interval = setInterval(calculateCheckInCountdown, 1000);
+      intervals.push(setInterval(calculateCheckInCountdown, 1000));
     }
     
     // Timer untuk Absen Pulang (jika sudah absen masuk)
@@ -549,11 +553,11 @@ export default function UserHome() {
       };
       
       calculateCountdown();
-      interval = setInterval(calculateCountdown, 1000);
+      intervals.push(setInterval(calculateCountdown, 1000));
     }
     
-    return () => clearInterval(interval);
-  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime, settings, user, employees]);
+    return () => intervals.forEach(i => clearInterval(i));
+  }, [hasCheckedIn, hasCheckedOut, shiftEndTime, shifts, checkInTime, settings, user, employees, isTambahJaga, selectedFriendNip, replacingFriendNip]);
 
   const fetchLocation = () => {
     setIsLocating(true);
@@ -973,6 +977,7 @@ export default function UserHome() {
       const attRes = await fetch('/api/attendance');
       if (attRes.ok) {
         const data = await attRes.json();
+        setAttendanceData(data);
         const userData = JSON.parse(localStorage.getItem('user') || '{}');
         const today = format(getServerTime(), 'yyyy-MM-dd');
         
@@ -1044,7 +1049,7 @@ export default function UserHome() {
             )}
           </CardHeader>
           <CardContent className="space-y-6">
-            {leaveType ? (
+            {leaveType && !isTambahJaga && !replacingFriendNip ? (
               <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
                 <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
                 <AlertDescription className="text-lg font-medium text-center py-4">
@@ -1054,7 +1059,7 @@ export default function UserHome() {
                   {leaveType === 'dinas_luar' && "Selamat menjalankan dinas luar, tetap semangat dan jaga kesehatan!"}
                 </AlertDescription>
               </Alert>
-            ) : hasCheckedOut && !isTambahJaga ? (
+            ) : hasCheckedOut && !isTambahJaga && !replacingFriendNip ? (
               <>
                 <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
                   <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-teal-500" />
@@ -1092,7 +1097,12 @@ export default function UserHome() {
                          <SelectValue placeholder="Pilih teman yang akan dijagakan" />
                       </SelectTrigger>
                       <SelectContent>
-                        {employees.filter(e => e.nip !== user?.nip).map(emp => (
+                        {employees.filter(e => {
+                          if (e.nip === user?.nip) return false;
+                          const today = format(getServerTime(), 'yyyy-MM-dd');
+                          const hasAttendedToday = attendanceData.some((a: any) => a.nip === e.nip && a.date === today && a.type === 'in');
+                          return !hasAttendedToday;
+                        }).map(emp => (
                           <SelectItem key={emp.nip} value={emp.nip}>{emp.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1123,7 +1133,7 @@ export default function UserHome() {
                   </Alert>
                 )}
 
-                {!hasCheckedIn && checkInCountdown && !canCheckIn && (
+                {(!hasCheckedIn || isTambahJaga) && checkInCountdown && !canCheckIn && (
                   <Alert className="bg-teal-50 dark:bg-teal-950/50 border-teal-200 dark:border-teal-900 text-teal-700 dark:text-teal-400">
                     <AlertDescription className="text-center">
                       <p className="mb-2">Shift berikutnya: <strong>{nextShift?.name} ({nextShift?.startTime})</strong></p>
@@ -1155,11 +1165,11 @@ export default function UserHome() {
                 </div>
 
                 <Button
-                  onClick={() => (!isWithinRange && !hasCheckedIn) ? navigate('/user/leave') : handleAbsen(false)}
-                  disabled={!isInitialDataLoaded || !location || isAbsenting || (!canCheckIn && !hasCheckedIn && isWithinRange) || (isTambahJaga && !selectedFriendNip) || (hasCheckedIn && !canCheckOut) || (hasCheckedIn && !isWithinRange)}
+                  onClick={() => (!isWithinRange && !hasCheckedIn && !isTambahJaga && !replacingFriendNip) ? navigate('/user/leave') : handleAbsen(false)}
+                  disabled={!isInitialDataLoaded || !location || isAbsenting || (isTambahJaga ? (!selectedFriendNip || !isWithinRange || !canCheckIn) : replacingFriendNip ? (!isWithinRange || (hasCheckedIn && !canCheckOut)) : (!hasCheckedIn ? (isWithinRange && !canCheckIn) : (!isWithinRange || !canCheckOut)))}
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 rounded-lg shadow-[0_0_10px_rgba(20,184,166,0.5)] transition-all disabled:opacity-50"
                 >
-                  {(!isInitialDataLoaded || isAbsenting) ? 'Memproses...' : (!isWithinRange && !hasCheckedIn) ? 'Ajukan Izin' : (!isWithinRange && hasCheckedIn) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? 'Absen Masuk (Ganti Teman)' : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
+                  {(!isInitialDataLoaded || isAbsenting) ? 'Memproses...' : (!isWithinRange && !hasCheckedIn && !isTambahJaga && !replacingFriendNip) ? 'Ajukan Izin' : (!isWithinRange) ? 'Di Luar Jangkauan Radius' : (isTambahJaga ? (canCheckIn ? 'Absen Masuk (Ganti Teman)' : 'Belum Waktunya') : replacingFriendNip ? 'Absen Pulang (Ganti Jaga)' : hasCheckedIn ? 'Absen Pulang' : (canCheckIn ? 'Absen Masuk' : 'Belum Waktunya'))}
                 </Button>
 
                 {hasCheckedIn && !canCheckOut && !hasCheckedOut && !isTambahJaga && !replacingFriendNip && settings?.absensiSettings?.enableEarlyCheckout !== false && (

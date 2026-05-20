@@ -34,6 +34,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [units, setUnits] = useState<{id: string, name: string}[]>([]);
+  const [locations, setLocations] = useState<{id: string, desa: string}[]>([]);
 
   const [appName, setAppName] = useState("Si Abon Eiite App");
   const [appLogo, setAppLogo] = useState("");
@@ -74,18 +75,25 @@ export default function Login() {
     };
     fetchSettings();
 
-    const fetchUnits = async () => {
+    const fetchUnitsAndLocations = async () => {
       try {
-        const response = await fetch('/api/units');
-        if (response.ok) {
-          const data = await response.json();
+        const [unitsRes, locRes] = await Promise.all([
+          fetch('/api/units'),
+          fetch('/api/locations')
+        ]);
+        if (unitsRes.ok) {
+          const data = await unitsRes.json();
           setUnits(data);
         }
+        if (locRes.ok) {
+          const data = await locRes.json();
+          setLocations(data);
+        }
       } catch (error) {
-        console.error('Failed to fetch units:', error);
+        console.error('Failed to fetch data:', error);
       }
     };
-    fetchUnits();
+    fetchUnitsAndLocations();
   }, [navigate]);
 
   const generateDeviceId = async () => {
@@ -160,7 +168,7 @@ export default function Login() {
           cluster: regCluster,
           unit: regUnit,
           desa: regDesa,
-          office2: regOffice2
+          office2: regOffice2 === 'none' ? '' : regOffice2
         }),
       });
 
@@ -411,25 +419,31 @@ export default function Login() {
 
             <div className="space-y-2">
               <Label htmlFor="regDesa">Lokasi Kantor 1</Label>
-              <Input 
-                id="regDesa" 
-                type="text" 
-                placeholder="Masukkan nama desa kantor utama,contoh: Dibee" 
-                value={regDesa}
-                onChange={(e) => setRegDesa(e.target.value)}
-                required
-              />
+              <Select value={regDesa} onValueChange={setRegDesa} required>
+                <SelectTrigger id="regDesa">
+                  <SelectValue placeholder="Pilih Lokasi Kantor Utama" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((loc) => (
+                    <SelectItem key={`loc1-${loc.id}`} value={loc.desa}>{loc.desa}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="regOffice2">Lokasi Kantor 2 (Opsional)</Label>
-              <Input 
-                id="regOffice2" 
-                type="text" 
-                placeholder="Masukkan nama desa kantor kedua, contoh: Canditunggal" 
-                value={regOffice2}
-                onChange={(e) => setRegOffice2(e.target.value)}
-              />
+              <Select value={regOffice2} onValueChange={setRegOffice2}>
+                <SelectTrigger id="regOffice2">
+                  <SelectValue placeholder="Pilih Lokasi Kantor Kedua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tidak Ada</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={`loc2-${loc.id}`} value={loc.desa}>{loc.desa}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
